@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    background-color: var(--color-dark-navy);
+    overscroll-behavior: none; /* <-- THIS LINE REMOVES THE BOUNCE EFFECT */
+  }
+}
+
+@theme {
+  /* Use the Poppins font variable */
+  --font-family-sans: var(--font-poppins), sans-serif;
+
+  /* Theme: Dark Navy & Gold */
+  --color-dark-navy: #000a16;
+  --color-brand-gold: #ffcc00;
+  --color-light-slate: #ccd6f6;
+  --color-slate: #8892b0;
+}
+
+@layer utilities {
+  .website-bg {
+    background-image: url("/image2.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  .animate-spin-slow {
+    animation: spin 15s linear infinite;
+  }
+}
+/* Add this inside your globals.css */
+
