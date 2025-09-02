@@ -9,7 +9,7 @@ import {
 import { auth, db } from "@/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 

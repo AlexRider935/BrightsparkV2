@@ -1,0 +1,9 @@
+import LoginFormComponent from "@/components/portal/LoginFormComponent";
+
+export default function TeacherLoginPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center pt-24">
+      <LoginFormComponent roleTitle="Teacher" />
+    </div>
+  );
+}

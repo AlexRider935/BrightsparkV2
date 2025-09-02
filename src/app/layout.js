@@ -2,6 +2,7 @@ import { Poppins } from "next/font/google"; // Or your chosen font
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
+
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ['300', '400', '500', '600', '700', '800'],

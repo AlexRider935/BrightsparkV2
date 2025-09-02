@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import 'react-day-picker/dist/style.css'; 
+
 
 @layer base {
   html {
@@ -33,3 +35,6 @@
 }
 /* Add this inside your globals.css */
 
+/* In src/app/globals.css */
+
+/* In src/app/globals.css */
