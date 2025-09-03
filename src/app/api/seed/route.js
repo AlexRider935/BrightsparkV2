@@ -1,44 +1,43 @@
 import { NextResponse } from 'next/server';
-import { db } from "@/firebase/config";
-import { collection, addDoc, writeBatch } from "firebase/firestore";
+import { db } from '@/firebase/config';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 
 export async function GET() {
-    // Security check: Only allow this to run in a development environment
-    if (process.env.NODE_ENV !== 'development') {
-        return NextResponse.json({ success: false, message: "Seeder is only available in development mode." }, { status: 403 });
-    }
-
-    const teachersData = [
-        { name: "Mrs. Sharma", title: "Lead Physics Faculty", image: "/team/teacher-1.jpg", bio: "With over 15 years of experience, Mrs. Sharma makes complex physics concepts intuitive and engaging." },
-        { name: "Mr. Gupta", title: "Head of Chemistry", image: "/team/teacher-2.jpg", bio: "Mr. Gupta's passion for chemistry is contagious, inspiring students to explore the molecular world." },
-        { name: "Ms. Verma", title: "Mathematics Specialist", image: "/team/teacher-3.jpg", bio: "An expert in competitive math, Ms. Verma equips students with the skills to excel in any exam." }
-    ];
-
     try {
-        const batch = writeBatch(db);
-        const teachersCollection = collection(db, "teachers");
-        const teacherRefs = [];
+        const teachersCollection = collection(db, 'teachers');
+        const batchesCollection = collection(db, 'batches');
 
-        // Add teachers and get their new document IDs
-        for (const teacher of teachersData) {
-            const docRef = await addDoc(teachersCollection, teacher);
-            teacherRefs.push(docRef.id);
-        }
+        // Clear existing collections if needed (optional)
+        // For a fresh start, you might want to manually clear them in the Firebase console.
 
-        const coursesData = [
-            { category: "foundation", title: "Foundation Program (VI-VIII)", description: "Building strong fundamentals in core subjects.", price: "15,000", duration: "1 Year", schedule: "Mon, Wed, Fri - 5:00 PM", teacherIds: [teacherRefs[2]] },
-            { category: "advanced", title: "Advanced Program (IX-X)", description: "In-depth subject mastery and strategic preparation for boards.", price: "20,000", duration: "1 Year", schedule: "Tue, Thu, Sat - 5:00 PM", teacherIds: [teacherRefs[0], teacherRefs[1]] },
-            { category: "competitive", title: "Sainik School Entrance Prep", description: "A rigorous and disciplined program to excel in the AISSEE.", price: "25,000", duration: "6 Months", schedule: "Daily - 4:00 PM", teacherIds: [teacherRefs[0], teacherRefs[2]] }
+        // Seed Teachers (as placeholders for now)
+        const teachers = [
+            { name: "Mr. A. K. Sharma" },
+            { name: "Mrs. S. Gupta" },
+            { name: "Mr. R. Verma" },
+            { name: "Ms. P. Singh" },
         ];
 
-        const coursesCollection = collection(db, "courses");
-        for (const course of coursesData) {
-            await addDoc(coursesCollection, { ...course, mode: "Offline Classes" });
+        // Use a transaction or batch write for atomicity
+        for (const teacher of teachers) {
+            await addDoc(teachersCollection, teacher);
         }
+        console.log("Seeded Teachers");
 
-        return NextResponse.json({ success: true, message: "Database seeded successfully!" });
+        // Seed Batches
+        const batches = [
+            { name: "Foundation Batch", classLevel: "Class VI", teacher: "Mr. A. K. Sharma", capacity: 25, status: "Active" },
+            { name: "Olympiad Batch", classLevel: "Class VII", teacher: "Mrs. S. Gupta", capacity: 20, status: "Active" },
+        ];
+
+        for (const batch of batches) {
+            await addDoc(batchesCollection, { ...batch, studentCount: 0 }); // Add studentCount
+        }
+        console.log("Seeded Batches");
+
+        return NextResponse.json({ message: 'Database seeded successfully' });
     } catch (error) {
         console.error("Error seeding database:", error);
-        return NextResponse.json({ success: false, message: "Error seeding database.", error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to seed database' }, { status: 500 });
     }
 }
