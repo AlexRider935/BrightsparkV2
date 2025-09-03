@@ -1,9 +1,9 @@
-import AchievementsSection from '@/components/AchievementsSection';
-import CTASection from '@/components/CTASection';
-import FeaturesSection from '@/components/FeaturesSection';
+import AchievementsSection from '@/app/(site)/components/AchievementsSection';
+import CTASection from '@/app/(site)/components/CTASection';
+import FeaturesSection from '@/app/(site)/components/FeaturesSection';
 // Remove Footer import from here
-import HeroSection from '@/components/HeroSection';
-import TestimonialsSection from '@/components/Testimonials';
+import HeroSection from '@/app/(site)/components/HeroSection';
+import TestimonialsSection from '@/app/(site)/components/Testimonials';
 
 export default function Home() {
   return (

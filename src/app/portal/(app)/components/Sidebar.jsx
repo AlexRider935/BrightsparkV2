@@ -4,14 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-// --- ICONS IMPORTED ---
+
+// --- EXPANDED ICON IMPORTS FOR ALL ROLES ---
 import {
   LayoutDashboard,
   BookOpen,
   User,
   Settings,
   LogOut,
-  ClipboardCheck,
   Megaphone,
   CalendarDays,
   ClipboardList,
@@ -20,10 +20,25 @@ import {
   CreditCard,
   UserCheck,
   ImageIcon,
-  Phone,Users,BookMarked,FolderUp,MessageSquare,Upload
+  Phone,
+  Users,
+  BookMarked,
+  FolderUp,
+  Upload,
+  School,
+  Library,
+  UserPlus,
+  IndianRupee,
+  Banknote,
+  Layout,
+  PenSquare,
+  MessageCircle,
+  BarChart2,
+  GitBranch,
+  UserCircle,
 } from "lucide-react";
 
-// --- STUDENT NAV ITEMS UPDATED ---
+// --- STUDENT NAV ITEMS ---
 const studentNavItems = [
   {
     href: "/portal/student-dashboard",
@@ -31,30 +46,14 @@ const studentNavItems = [
     Icon: LayoutDashboard,
   },
   {
-    href: "/portal/student-dashboard/announcements",
-    label: "Announcements",
-    Icon: Megaphone,
-  },
-  {
-    href: "/portal/student-dashboard/courses",
-    label: "My Courses",
-    Icon: BookOpen,
-  },
-  {
-    href: "/portal/student-dashboard/homework",
-    label: "Homework",
-    Icon: CheckSquare,
-  },
-  {
-    href: "/portal/student-dashboard/assignments",
-    label: "Assignments",
-    Icon: ClipboardList,
-  },
-  { href: "/portal/student-dashboard/results", label: "Results", Icon: Award },
-  {
     href: "/portal/student-dashboard/attendance",
     label: "Attendance",
     Icon: UserCheck,
+  },
+  {
+    href: "/portal/student-dashboard/announcements",
+    label: "Announcements",
+    Icon: Megaphone,
   },
   {
     href: "/portal/student-dashboard/events",
@@ -62,31 +61,46 @@ const studentNavItems = [
     Icon: CalendarDays,
   },
   {
+    href: "/portal/student-dashboard/gallery",
+    label: "Gallery",
+    Icon: ImageIcon,
+  },
+  {
+    href: "/portal/student-dashboard/courses",
+    label: "My Courses",
+    Icon: BookOpen,
+  },
+  {
+    href: "/portal/student-dashboard/assignments",
+    label: "Assignments",
+    Icon: ClipboardList,
+  },
+  {
+    href: "/portal/student-dashboard/homework",
+    label: "Homework",
+    Icon: CheckSquare,
+  },
+  { href: "/portal/student-dashboard/results", label: "Results", Icon: Award },
+  {
     href: "/portal/student-dashboard/payments",
     label: "Payments",
     Icon: CreditCard,
   },
   {
-    href: "/portal/student-dashboard/gallery",
-    label: "Gallery",
-    Icon: ImageIcon,
+    href: "/portal/student-dashboard/contact",
+    label: "Contact Us",
+    Icon: Phone,
   },
-  { type: "divider" }, // Divider separates main app from user settings
+  { type: "divider" },
   { href: "/portal/student-dashboard/profile", label: "Profile", Icon: User },
   {
     href: "/portal/student-dashboard/settings",
     label: "Settings",
     Icon: Settings,
   },
-  {
-    // --- NEW ITEM ADDED HERE ---
-    href: "/portal/student-dashboard/contact",
-    label: "Contact Us",
-    Icon: Phone,
-  },
 ];
 
-// Teacher nav items are unchanged for now
+// --- TEACHER NAV ITEMS ---
 const teacherNavItems = [
   {
     href: "/portal/teacher-dashboard",
@@ -107,7 +121,7 @@ const teacherNavItems = [
   {
     href: "/portal/teacher-dashboard/assignments",
     label: "Assignments",
-    Icon: ClipboardCheck,
+    Icon: ClipboardList,
   },
   {
     href: "/portal/teacher-dashboard/results",
@@ -122,7 +136,7 @@ const teacherNavItems = [
   { type: "divider" },
   {
     href: "/portal/teacher-dashboard/announcements",
-    label: "Announcements",
+    label: "Post Announcement",
     Icon: Megaphone,
   },
   {
@@ -139,14 +153,113 @@ const teacherNavItems = [
   },
 ];
 
+// --- ADMIN NAV ITEMS (URLs Corrected) ---
+const adminNavItems = [
+  {
+    href: "/portal/admin-dashboard",
+    label: "Dashboard",
+    Icon: LayoutDashboard,
+  },
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/batches",
+    label: "Manage Batches",
+    Icon: School,
+  },
+  {
+    href: "/portal/admin-dashboard/subjects",
+    label: "Manage Subjects",
+    Icon: Library,
+  },
+  {
+    href: "/portal/admin-dashboard/students",
+    label: "Manage Students",
+    Icon: Users,
+  },
+  {
+    href: "/portal/admin-dashboard/teachers",
+    label: "Manage Teachers",
+    Icon: UserCircle,
+  },
+  {
+    href: "/portal/admin-dashboard/admissions",
+    label: "Admissions",
+    Icon: UserPlus,
+  },
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/announcements",
+    label: "Manage Announcements",
+    Icon: Megaphone,
+  },
+  {
+    href: "/portal/admin-dashboard/materials",
+    label: "Manage Study Materials",
+    Icon: FolderUp,
+  },
+  {
+    href: "/portal/admin-dashboard/gallery",
+    label: "Manage Gallery",
+    Icon: ImageIcon,
+  },
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/fees",
+    label: "Fee Management",
+    Icon: IndianRupee,
+  },
+  {
+    href: "/portal/admin-dashboard/payroll",
+    label: "Teacher Payroll",
+    Icon: Banknote,
+  },
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/edit-homepage",
+    label: "Edit Homepage",
+    Icon: Layout,
+  },
+  {
+    href: "/portal/admin-dashboard/edit-about",
+    label: "Edit About Page",
+    Icon: PenSquare,
+  },
+  {
+    href: "/portal/admin-dashboard/testimonials",
+    label: "Manage Testimonials",
+    Icon: MessageCircle,
+  },
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/analytics",
+    label: "Analytics & Reports",
+    Icon: BarChart2,
+  },
+  {
+    href: "/portal/admin-dashboard/settings",
+    label: "System Settings",
+    Icon: Settings,
+  },
+  {
+    href: "/portal/admin-dashboard/logs",
+    label: "Activity Logs",
+    Icon: GitBranch,
+  },
+];
+
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
 
-  const navItems = user?.role === "teacher" ? teacherNavItems : studentNavItems;
+  // Logic to select the correct navigation list based on user role
+  const navItems = pathname.startsWith("/portal/admin-dashboard")
+    ? adminNavItems
+    : pathname.startsWith("/portal/teacher-dashboard")
+    ? teacherNavItems
+    : studentNavItems;
 
   return (
-    <aside className="sticky top-0 h-screen w-64 flex-shrink-0 border-r border-white/10 bg-dark-navy/50 p-6 backdrop-blur-lg">
+    <aside className="sticky top-0 h-screen w-64 flex-shrink-0 border-r border-white/10 bg-dark-navy/50 p-6 backdrop-blur-lg overflow-y-auto">
       <div className="flex h-full flex-col">
         <div className="mb-8">
           <Link href="/">
@@ -160,11 +273,10 @@ export default function Sidebar() {
         </div>
         <nav className="flex-grow">
           <ul className="space-y-2">
-            {/* --- MAPPING LOGIC UPDATED TO HANDLE DIVIDER --- */}
-            {navItems.map((item) =>
+            {navItems.map((item, index) =>
               item.type === "divider" ? (
                 <li
-                  key="divider"
+                  key={`divider-${index}`}
                   className="pt-2 mt-2 border-t border-white/10"></li>
               ) : (
                 <li key={item.label}>
@@ -183,16 +295,16 @@ export default function Sidebar() {
             )}
           </ul>
         </nav>
-        <div className="mt-auto border-t border-white/10 pt-4">
+        <div className="mt-auto border-t border-white/10 pt-4 shrink-0">
           {user && (
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold">
                 {user.displayName
                   ? user.displayName.charAt(0).toUpperCase()
-                  : user.email.charAt(0).toUpperCase()}
+                  : user.email?.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-sm font-medium text-white">
+                <p className="text-sm font-medium text-white truncate">
                   {user.displayName || user.email}
                 </p>
                 <button

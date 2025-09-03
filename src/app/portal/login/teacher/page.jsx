@@ -1,4 +1,4 @@
-import LoginFormComponent from "@/components/portal/LoginFormComponent";
+import LoginFormComponent from "@/app/portal/login/components/LoginFormComponent";
 
 export default function TeacherLoginPage() {
   return (
