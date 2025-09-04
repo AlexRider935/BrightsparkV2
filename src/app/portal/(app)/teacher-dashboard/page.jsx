@@ -1,6 +1,15 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { db } from "@/firebase/config";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 import {
   Users,
   BookCopy,
@@ -9,45 +18,15 @@ import {
   Megaphone,
   PlusCircle,
   ChevronRight,
+  Loader2,
+  Home,
+  UserCheck,
+  BookMarked,
+  FolderUp,
+  UserSquare,
 } from "lucide-react";
 import Link from "next/link";
-
-// --- MOCK DATA FOR TEACHER DASHBOARD ---
-const mockTeacherData = {
-  name: "Mr. Sharma",
-  stats: {
-    activeCourses: 3,
-    totalStudents: 45,
-    pendingSubmissions: 5,
-  },
-  upcomingClasses: [
-    { id: "c1", course: "Mathematics VI", time: "4:00 PM Today" },
-    { id: "c2", course: "Physics VII", time: "5:00 PM Today" },
-    { id: "c3", course: "Mathematics VI", time: "4:00 PM Tomorrow" },
-  ],
-  needsAttention: [
-    {
-      id: "a1",
-      type: "Grading",
-      description: 'Grade 5 submissions for "Algebra Problems"',
-    },
-    {
-      id: "h1",
-      type: "Review",
-      description: 'Review homework for "Science VI"',
-    },
-    {
-      id: "m1",
-      type: "Message",
-      description: "New message from Alex Rider's parent",
-    },
-  ],
-  myCourses: [
-    { id: "math_vi", title: "Mathematics VI" },
-    { id: "physics_vii", title: "Physics VII" },
-    { id: "chem_vii", title: "Chemistry VII" },
-  ],
-};
+import { formatDistanceToNow } from "date-fns";
 
 // --- Reusable Components ---
 const StatCard = ({ title, value, Icon }) => (
@@ -61,116 +40,200 @@ const StatCard = ({ title, value, Icon }) => (
 );
 
 const DashboardSection = ({ title, children, actionButton }) => (
-  <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
+  <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg h-full flex flex-col">
     <div className="flex justify-between items-center mb-4">
       <h3 className="text-lg font-semibold text-brand-gold">{title}</h3>
       {actionButton}
     </div>
-    <div className="space-y-3">{children}</div>
+    <div className="space-y-3 flex-grow">{children}</div>
   </div>
 );
 
 export default function TeacherDashboardPage() {
+  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+
+  useEffect(() => {
+    setLoading(true);
+    // Fetch institute-wide data, no teacher filtering
+    const qStudents = query(collection(db, "students"));
+    const unsubStudents = onSnapshot(qStudents, (snap) =>
+      setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+
+    const qBatches = query(collection(db, "batches"), orderBy("name"));
+    const unsubBatches = onSnapshot(qBatches, (snap) =>
+      setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+
+    const qAnnouncements = query(
+      collection(db, "announcements"),
+      orderBy("createdAt", "desc"),
+      limit(3)
+    );
+    const unsubAnnouncements = onSnapshot(qAnnouncements, (snap) =>
+      setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+
+    setTimeout(() => setLoading(false), 1500);
+
+    return () => {
+      unsubStudents();
+      unsubBatches();
+      unsubAnnouncements();
+    };
+  }, []);
+
+  const dashboardData = useMemo(() => {
+    const activeBatchesCount = batches.filter(
+      (b) => b.status === "Active"
+    ).length;
+    const totalStudentsCount = students.length;
+
+    return {
+      stats: {
+        activeBatches: activeBatchesCount,
+        totalStudents: totalStudentsCount,
+      },
+      announcements: announcements.filter(
+        (ann) => ann.id !== "--placeholder--"
+      ),
+    };
+  }, [batches, students, announcements]);
+
+  const quickLinks = [
+    {
+      label: "My Profile",
+      href: "/portal/teacher-dashboard/profile",
+      Icon: UserSquare,
+    },
+    {
+      label: "Student Roster",
+      href: "/portal/teacher-dashboard/students",
+      Icon: Users,
+    },
+    {
+      label: "Attendance",
+      href: "/portal/teacher-dashboard/attendance",
+      Icon: UserCheck,
+    },
+    {
+      label: "Assignments",
+      href: "/portal/teacher-dashboard/assignments",
+      Icon: ClipboardCheck,
+    },
+    {
+      label: "Gradebook",
+      href: "/portal/teacher-dashboard/results",
+      Icon: BookMarked,
+    },
+    {
+      label: "Study Material",
+      href: "/portal/teacher-dashboard/materials",
+      Icon: FolderUp,
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-2">
         Teacher Dashboard
       </h1>
       <p className="text-lg text-slate mb-8">
-        Welcome back,{" "}
-        <span className="text-brand-gold">{mockTeacherData.name}</span>
+        Welcome! Here's a summary of institute activities.
       </p>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title="Active Courses"
-          value={mockTeacherData.stats.activeCourses}
+          title="Active Batches"
+          value={dashboardData.stats.activeBatches}
           Icon={BookCopy}
         />
         <StatCard
           title="Total Students"
-          value={mockTeacherData.stats.totalStudents}
+          value={dashboardData.stats.totalStudents}
           Icon={Users}
         />
-        <StatCard
-          title="Pending Submissions"
-          value={mockTeacherData.stats.pendingSubmissions}
-          Icon={ClipboardCheck}
-        />
+        <StatCard title="Pending Submissions" value={0} Icon={ClipboardCheck} />
+        <StatCard title="Upcoming Classes" value={0} Icon={Clock} />
       </div>
 
-      {/* Main Dashboard Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (Main Content) */}
         <motion.div
           className="lg:col-span-2 space-y-6"
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}>
-          <DashboardSection title="Needs Your Attention">
-            {mockTeacherData.needsAttention.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-800/50">
-                <div>
-                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-500/20 text-slate-300">
-                    {item.type}
-                  </span>
-                  <p className="font-medium text-light-slate mt-1">
-                    {item.description}
-                  </p>
-                </div>
-                <button className="text-xs font-semibold text-brand-gold hover:underline">
-                  View
-                </button>
-              </div>
-            ))}
-          </DashboardSection>
-
-          <DashboardSection title="Upcoming Classes">
-            {mockTeacherData.upcomingClasses.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-800/50">
-                <div className="bg-dark-navy p-2 rounded-lg border border-white/10">
-                  <Clock className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="font-medium text-light-slate">{item.course}</p>
-                  <p className="text-sm text-slate">{item.time}</p>
-                </div>
-              </div>
-            ))}
+          animate={{ opacity: 1, y: 0 }}>
+          <DashboardSection title="Quick Links">
+            <div className="grid grid-cols-2 gap-4">
+              {quickLinks.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="flex items-center gap-3 p-4 rounded-lg text-slate-300 hover:text-light-slate hover:bg-slate-800/50 transition-colors">
+                  <link.Icon className="h-6 w-6 text-slate-400" />
+                  <span className="font-medium">{link.label}</span>
+                </Link>
+              ))}
+            </div>
           </DashboardSection>
         </motion.div>
 
-        {/* Right Column (Quick Actions) */}
         <motion.div
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}>
+          transition={{ delay: 0.1 }}>
           <DashboardSection
-            title="Announcements"
+            title="Recent Announcements"
             actionButton={
-              <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md bg-brand-gold/20 text-brand-gold hover:bg-brand-gold hover:text-dark-navy transition-colors">
+              <Link
+                href="/portal/teacher-dashboard/announcements"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md bg-brand-gold/20 text-brand-gold hover:bg-brand-gold hover:text-dark-navy transition-colors">
                 <PlusCircle size={14} />
                 <span>New</span>
-              </button>
+              </Link>
             }>
-            <p className="text-sm text-slate text-center py-4">
-              No recent announcements posted.
-            </p>
+            {dashboardData.announcements.length > 0 ? (
+              dashboardData.announcements.map((ann) => (
+                <div
+                  key={ann.id}
+                  className="p-2 border-b border-slate-800/50 last:border-b-0">
+                  <p className="font-medium text-light-slate text-sm truncate">
+                    {ann.title}
+                  </p>
+                  <p className="text-xs text-slate">
+                    {ann.createdAt
+                      ? formatDistanceToNow(ann.createdAt.toDate(), {
+                          addSuffix: true,
+                        })
+                      : ""}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate text-center py-4">
+                No recent announcements.
+              </p>
+            )}
           </DashboardSection>
 
-          <DashboardSection title="My Courses">
-            {mockTeacherData.myCourses.map((course) => (
+          <DashboardSection title="All Batches">
+            {batches.map((batch) => (
               <Link
-                key={course.id}
-                href={`/portal/teacher-courses/${course.id}`}
+                key={batch.id}
+                href="/portal/teacher-dashboard/students"
                 className="flex items-center justify-between p-3 rounded-lg text-slate hover:text-light-slate hover:bg-slate-800/50">
-                <span className="font-medium">{course.title}</span>
+                <span className="font-medium">{batch.name}</span>
                 <ChevronRight size={16} />
               </Link>
             ))}

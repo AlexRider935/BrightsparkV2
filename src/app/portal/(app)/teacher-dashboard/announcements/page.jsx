@@ -82,7 +82,6 @@ const AnnouncementModal = ({
     };
 
     let dataToSet = announcement ? { ...announcement } : initialData;
-    // Ensure date is a string for the input field
     if (dataToSet.expiryDate instanceof Timestamp) {
       dataToSet.expiryDate = dataToSet.expiryDate
         .toDate()
@@ -103,6 +102,7 @@ const AnnouncementModal = ({
     setIsSaving(true);
     await onSave(formData);
     setIsSaving(false);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -139,7 +139,7 @@ const AnnouncementModal = ({
                   value={formData.title || ""}
                   onChange={handleChange}
                   required
-                  className="w-full form-input"
+                  className="form-input"
                 />
               </div>
               <div>
@@ -156,7 +156,7 @@ const AnnouncementModal = ({
                   rows="5"
                   required
                   placeholder="Enter the full text of the announcement here..."
-                  className="w-full form-input"
+                  className="form-input"
                 />
               </div>
             </fieldset>
@@ -173,7 +173,7 @@ const AnnouncementModal = ({
                   name="target"
                   value={formData.target || "All Users"}
                   onChange={handleChange}
-                  className="w-full form-input">
+                  className="form-input">
                   {audienceOptions.map((aud) => (
                     <option key={aud} value={aud}>
                       {aud}
@@ -194,7 +194,7 @@ const AnnouncementModal = ({
                   value={formData.expiryDate || ""}
                   onChange={handleChange}
                   required
-                  className="w-full form-input"
+                  className="form-input"
                 />
               </div>
             </fieldset>
@@ -203,13 +203,13 @@ const AnnouncementModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20 transition-colors">
+                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 transition-colors">
+                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {announcement ? "Save Changes" : "Publish Announcement"}
               </button>
@@ -227,47 +227,38 @@ const AnnouncementModal = ({
 };
 
 const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, title }) => {
+  // Redacted for brevity
   if (!isOpen) return null;
   return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={onClose}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}>
-        <motion.div
-          className="relative w-full max-w-md rounded-2xl border border-red-500/30 bg-dark-navy p-6 text-center"
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
-            <AlertTriangle className="h-6 w-6 text-red-400" />
-          </div>
-          <h3 className="mt-4 text-lg font-bold text-white">
-            Delete Announcement
-          </h3>
-          <p className="mt-2 text-sm text-slate">
-            Are you sure you want to delete{" "}
-            <span className="font-bold text-light-slate">"{title}"</span>? This
-            is permanent.
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              className="w-full px-4 py-2 text-sm font-bold rounded-md bg-red-600 text-white hover:bg-red-700">
-              Confirm Delete
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}>
+      <div
+        className="relative w-full max-w-md p-6 text-center bg-dark-navy rounded-2xl border border-red-500/30"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
+          <AlertTriangle className="h-6 w-6 text-red-400" />
+        </div>
+        <h3 className="mt-4 text-lg font-bold text-white">
+          Delete Announcement
+        </h3>
+        <p className="mt-2 text-sm text-slate">
+          Are you sure you want to delete "{title}"?
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="w-full px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-md hover:bg-red-700">
+            Confirm Delete
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -294,7 +285,7 @@ const EmptyState = ({
 );
 
 // --- MAIN PAGE COMPONENT ---
-export default function ManageAnnouncementsPage() {
+export default function TeacherAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([]);
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -304,6 +295,8 @@ export default function ManageAnnouncementsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState(null);
 
+  const currentTeacher = { name: "Mr. A. K. Sharma" }; // Placeholder
+
   useEffect(() => {
     setLoading(true);
     const qAnnouncements = query(
@@ -311,11 +304,11 @@ export default function ManageAnnouncementsPage() {
       orderBy("createdAt", "desc")
     );
     const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
-      const announcementData = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((doc) => doc.id !== "--placeholder--");
-
-      setAnnouncements(announcementData);
+      setAnnouncements(
+        snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((doc) => doc.id !== "--placeholder--")
+      );
       setLoading(false);
     });
 
@@ -348,22 +341,19 @@ export default function ManageAnnouncementsPage() {
         ...data,
         expiryDate: Timestamp.fromDate(new Date(data.expiryDate)),
       };
-
       if (editingAnnouncement) {
-        // This is an EDIT
         await updateDoc(
           doc(db, "announcements", editingAnnouncement.id),
           dataToSave
         );
       } else {
-        // This is a CREATE
         await addDoc(collection(db, "announcements"), {
           ...dataToSave,
           createdAt: Timestamp.now(),
+          createdBy: currentTeacher.name,
         });
       }
       setIsModalOpen(false);
-      setEditingAnnouncement(null);
     } catch (error) {
       console.error("Error saving announcement:", error);
     }
@@ -373,7 +363,6 @@ export default function ManageAnnouncementsPage() {
     setDeletingAnnouncement(announcement);
     setIsDeleteModalOpen(true);
   };
-
   const confirmDelete = async () => {
     if (deletingAnnouncement) {
       try {
@@ -386,12 +375,10 @@ export default function ManageAnnouncementsPage() {
     }
   };
 
-  // Re-instated handleCreate to open the modal for a NEW announcement
   const handleCreate = () => {
     setEditingAnnouncement(null);
     setIsModalOpen(true);
   };
-
   const handleEdit = (announcement) => {
     setEditingAnnouncement(announcement);
     setIsModalOpen(true);
@@ -402,7 +389,6 @@ export default function ManageAnnouncementsPage() {
       return (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-          <p className="ml-4 text-slate">Loading Announcements...</p>
         </div>
       );
     if (announcements.length === 0)
@@ -431,7 +417,7 @@ export default function ManageAnnouncementsPage() {
           <div className="min-w-full">
             <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase">
               <div className="col-span-4">Title</div>
-              <div className="col-span-2">Audience</div>
+              <div className="col-span-2">Target</div>
               <div className="col-span-2">Published</div>
               <div className="col-span-2">Expires</div>
               <div className="col-span-1">Status</div>
@@ -441,7 +427,7 @@ export default function ManageAnnouncementsPage() {
               {filteredAnnouncements.map((item) => (
                 <div
                   key={item.id}
-                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
+                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
                   <div className="col-span-4 font-medium text-light-slate">
                     {item.title}
                   </div>
@@ -488,9 +474,6 @@ export default function ManageAnnouncementsPage() {
         .form-input {
           @apply w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200;
         }
-        .form-input[type="date"] {
-          @apply pr-2;
-        }
       `}</style>
       <AnnouncementModal
         isOpen={isModalOpen}
@@ -509,10 +492,10 @@ export default function ManageAnnouncementsPage() {
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
-              Manage Announcements
+              Announcements
             </h1>
             <p className="text-base text-slate">
-              Create and publish institute-wide notices.
+              View and publish institute-wide notices.
             </p>
           </div>
           <button

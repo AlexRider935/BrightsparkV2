@@ -1,61 +1,143 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Users, ChevronDown, Search, Phone, Eye } from "lucide-react";
-import Link from "next/link";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/firebase/config";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp,
+} from "firebase/firestore";
+import {
+  Users,
+  ChevronDown,
+  Search,
+  Phone,
+  Eye,
+  X,
+  Loader2,
+  Cake,
+  Calendar,
+  UserSquare,
+  MapPin,
+} from "lucide-react";
+import { format } from "date-fns";
 
-// --- MOCK DATA ---
-const mockTeacherBatches = [
-  { id: "batch_vi_foundation", title: "Class VI - Foundation Batch" },
-  { id: "batch_vii_olympiad", title: "Class VII - Olympiad Batch" },
-];
+// --- NEW COMPONENT: Student Detail Modal ---
+const StudentDetailModal = ({ isOpen, onClose, student }) => {
+  if (!isOpen || !student) return null;
 
-const mockStudentRoster = {
-  batch_vi_foundation: [
-    {
-      id: "s1",
-      name: "Alex Rider",
-      roll: "VI-01",
-      parentContact: "+91 98765 43210",
-    },
-    {
-      id: "s2",
-      name: "Ben Tennyson",
-      roll: "VI-02",
-      parentContact: "+91 98765 43211",
-    },
-    {
-      id: "s3",
-      name: "Cindy Vortex",
-      roll: "VI-03",
-      parentContact: "+91 98765 43212",
-    },
-  ],
-  batch_vii_olympiad: [
-    {
-      id: "s4",
-      name: "David Johnson",
-      roll: "VII-04",
-      parentContact: "+91 98765 43213",
-    },
-    {
-      id: "s5",
-      name: "Eva Williams",
-      roll: "VII-05",
-      parentContact: "+91 98765 43214",
-    },
-    {
-      id: "s6",
-      name: "Frank Green",
-      roll: "VII-06",
-      parentContact: "+91 98765 43215",
-    },
-  ],
+  const DetailItem = ({ Icon, label, value }) => (
+    <div>
+      <div className="flex items-center gap-2 text-sm text-slate">
+        <Icon size={14} />
+        <span>{label}</span>
+      </div>
+      <p className="mt-1 font-semibold text-light-slate">{value || "N/A"}</p>
+    </div>
+  );
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}>
+        <motion.div
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-dark-navy/80 p-6 shadow-2xl"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}>
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-slate-700 flex items-center justify-center font-bold text-3xl text-brand-gold shrink-0">
+                {student.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-brand-gold">
+                  {student.name}
+                </h2>
+                <p className="text-slate">
+                  Roll No: {student.rollNumber} | Batch: {student.batch}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/10">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-slate-700/50 pt-6">
+              <DetailItem
+                Icon={Cake}
+                label="Date of Birth"
+                value={
+                  student.dob instanceof Timestamp
+                    ? format(student.dob.toDate(), "MMM dd, yyyy")
+                    : "N/A"
+                }
+              />
+              <DetailItem
+                Icon={Calendar}
+                label="Admission Date"
+                value={
+                  student.admissionDate instanceof Timestamp
+                    ? format(student.admissionDate.toDate(), "MMM dd, yyyy")
+                    : "N/A"
+                }
+              />
+              <DetailItem Icon={Users} label="Gender" value={student.gender} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-slate-700/50 pt-6">
+              <DetailItem
+                Icon={UserSquare}
+                label="Parent's Name"
+                value={student.parentName}
+              />
+              <DetailItem
+                Icon={Phone}
+                label="Parent's Contact"
+                value={student.parentContact}
+              />
+              <DetailItem
+                Icon={Phone}
+                label="Emergency Contact"
+                value={student.emergencyContact || student.parentContact}
+              />
+            </div>
+            <div>
+              <DetailItem
+                Icon={MapPin}
+                label="Address"
+                value={student.address}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-8">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
 };
 
 // Component for a single student row
-const StudentRow = ({ student, index }) => (
+const StudentRow = ({ student, index, onView }) => (
   <motion.div
     className="grid grid-cols-6 gap-4 items-center p-4"
     initial={{ opacity: 0, y: 10 }}
@@ -63,11 +145,11 @@ const StudentRow = ({ student, index }) => (
     transition={{ duration: 0.3, delay: index * 0.05 }}>
     <div className="col-span-3 flex items-center gap-4">
       <div className="h-10 w-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-brand-gold shrink-0">
-        {student.name.charAt(0)}
+        {student.name.charAt(0).toUpperCase()}
       </div>
       <div>
         <p className="font-semibold text-light-slate">{student.name}</p>
-        <p className="text-xs text-slate">Roll No: {student.roll}</p>
+        <p className="text-xs text-slate">Roll No: {student.rollNumber}</p>
       </div>
     </div>
     <div className="col-span-2">
@@ -77,45 +159,89 @@ const StudentRow = ({ student, index }) => (
       </div>
     </div>
     <div className="col-span-1 text-right">
-      <Link
-        href={`#`}
+      <button
+        onClick={() => onView(student)}
         className="inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-brand-gold hover:text-dark-navy transition-colors">
         <Eye size={14} />
         <span>View</span>
-      </Link>
+      </button>
     </div>
   </motion.div>
 );
 
 export default function StudentRosterPage() {
+  const [allStudents, setAllStudents] = useState([]);
+  const [allBatches, setAllBatches] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [viewingStudent, setViewingStudent] = useState(null); // State for the modal
 
   useEffect(() => {
-    if (selectedBatch) {
-      const roster = mockStudentRoster[selectedBatch] || [];
-      const results = roster.filter(
-        (student) =>
-          student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          student.roll.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredStudents(results);
-    } else {
-      setFilteredStudents([]);
-    }
-  }, [selectedBatch, searchTerm]);
+    setLoading(true);
+    const unsubStudents = onSnapshot(
+      query(collection(db, "students"), orderBy("name")),
+      (snap) => {
+        setAllStudents(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d) => d.id !== "--placeholder--")
+        );
+      }
+    );
+    const unsubBatches = onSnapshot(
+      query(collection(db, "batches"), orderBy("name")),
+      (snap) => {
+        setAllBatches(
+          snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d) => d.id !== "--placeholder--")
+        );
+        setLoading(false);
+      }
+    );
+    return () => {
+      unsubStudents();
+      unsubBatches();
+    };
+  }, []);
+
+  const filteredStudents = useMemo(() => {
+    if (!selectedBatch) return [];
+
+    const studentsInBatch = allStudents.filter(
+      (student) => student.batch === selectedBatch
+    );
+
+    if (!searchTerm) return studentsInBatch;
+
+    return studentsInBatch.filter(
+      (student) =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.rollNumber &&
+          student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }, [selectedBatch, searchTerm, allStudents]);
+
+  const handleViewStudent = (student) => {
+    setViewingStudent(student);
+  };
 
   return (
     <div>
+      <StudentDetailModal
+        isOpen={!!viewingStudent}
+        onClose={() => setViewingStudent(null)}
+        student={viewingStudent}
+      />
+
       <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-2">
         Student Roster
       </h1>
       <p className="text-lg text-slate mb-8">
-        View and manage student details for your batches.
+        View student details for any batch in the institute.
       </p>
 
-      {/* Controls: Batch Selector and Search */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 p-4 rounded-xl border border-white/10 bg-slate-900/20">
         <div className="relative w-full sm:w-64">
           <select
@@ -123,9 +249,9 @@ export default function StudentRosterPage() {
             onChange={(e) => setSelectedBatch(e.target.value)}
             className="w-full appearance-none rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold">
             <option value="">Select a Batch to View Roster</option>
-            {mockTeacherBatches.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.title}
+            {allBatches.map((batch) => (
+              <option key={batch.id} value={batch.name}>
+                {batch.name}
               </option>
             ))}
           </select>
@@ -144,13 +270,15 @@ export default function StudentRosterPage() {
         </div>
       </div>
 
-      {/* Roster List */}
       <motion.div
         className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg"
-        animate={{ opacity: 1, y: 0 }}
-        initial={{ opacity: 0, y: 20 }}
-        transition={{ duration: 0.5 }}>
-        {selectedBatch ? (
+        animate={{ opacity: 1 }}
+        initial={{ opacity: 0 }}>
+        {loading ? (
+          <div className="flex justify-center items-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+          </div>
+        ) : selectedBatch ? (
           <>
             <div className="grid grid-cols-6 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate">
               <div className="col-span-3">Student Name</div>
@@ -164,11 +292,12 @@ export default function StudentRosterPage() {
                     key={student.id}
                     student={student}
                     index={index}
+                    onView={handleViewStudent}
                   />
                 ))
               ) : (
                 <p className="p-12 text-center text-slate">
-                  No students found matching your search.
+                  No students found matching your criteria in this batch.
                 </p>
               )}
             </div>

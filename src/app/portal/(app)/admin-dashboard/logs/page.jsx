@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { db } from "@/firebase/config";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import {
   GitBranch,
   Search,
@@ -13,93 +15,59 @@ import {
   PlusCircle,
   Trash2,
   Eye,
+  Loader2,
 } from "lucide-react";
-import { format } from "date-fns";
-
-// --- MOCK DATA ---
-const mockLogs = [
-  {
-    id: "log1",
-    timestamp: new Date(),
-    actor: { name: "Admin", role: "Admin" },
-    action: "Accessed the Activity Logs page.",
-    ip: "103.22.201.135",
-    type: "View",
-  },
-  {
-    id: "log2",
-    timestamp: new Date(new Date().setHours(new Date().getHours() - 1)),
-    actor: { name: "Mr. A. K. Sharma", role: "Teacher" },
-    action: "Updated grades for 'Algebra Assignment'.",
-    ip: "115.241.224.18",
-    type: "Update",
-  },
-  {
-    id: "log3",
-    timestamp: new Date(new Date().setHours(new Date().getHours() - 2)),
-    actor: { name: "Alex Rider", role: "Student" },
-    action: "Submitted assignment 'Photosynthesis Diagram'.",
-    ip: "122.177.15.201",
-    type: "Create",
-  },
-  {
-    id: "log4",
-    timestamp: new Date(new Date().setHours(new Date().getHours() - 5)),
-    actor: { name: "Admin", role: "Admin" },
-    action: "Deleted batch 'Trial Batch 2024'.",
-    ip: "103.22.201.135",
-    type: "Delete",
-  },
-  {
-    id: "log5",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 1)),
-    actor: { name: "Mrs. S. Gupta", role: "Teacher" },
-    action: "Logged in successfully.",
-    ip: "152.58.125.10",
-    type: "Login",
-  },
-  {
-    id: "log6",
-    timestamp: new Date(new Date().setDate(new Date().getDate() - 2)),
-    actor: { name: "Ben Tennyson", role: "Student" },
-    action: "Viewed the 'My Courses' page.",
-    ip: "223.187.34.112",
-    type: "View",
-  },
-];
+import { format, formatDistanceToNow } from "date-fns";
 
 const filters = {
   userType: ["All", "Admin", "Teacher", "Student"],
   actionType: ["All", "Create", "Update", "Delete", "Login", "View"],
 };
 
-// Helper object for log item icons and colors
 const logTypeDetails = {
   Update: { Icon: Edit, color: "text-sky-400" },
   Create: { Icon: PlusCircle, color: "text-green-400" },
   Delete: { Icon: Trash2, color: "text-red-400" },
   Login: { Icon: LogIn, color: "text-brand-gold" },
-  View: { Icon: Eye, color: "text-slate-400" }, // Assuming you add Eye to imports if needed
+  View: { Icon: Eye, color: "text-slate-400" },
 };
 
 // --- Main Page Component ---
 export default function ActivityLogsPage() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState({
     userType: "All",
     actionType: "All",
   });
   const [searchTerm, setSearchTerm] = useState("");
 
+  useEffect(() => {
+    setLoading(true);
+    const q = query(
+      collection(db, "activityLogs"),
+      orderBy("timestamp", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsData = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((doc) => doc.id !== "--placeholder--");
+      setLogs(logsData);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleFilterChange = (type, value) => {
     setActiveFilters((prev) => ({ ...prev, [type]: value }));
   };
 
   const filteredLogs = useMemo(() => {
-    return mockLogs
+    return logs
       .filter(
         (log) =>
           activeFilters.userType === "All" ||
-          log.actor.role === activeFilters.userType
+          log.actorRole === activeFilters.userType
       )
       .filter(
         (log) =>
@@ -109,9 +77,9 @@ export default function ActivityLogsPage() {
       .filter(
         (log) =>
           log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.actor.name.toLowerCase().includes(searchTerm.toLowerCase())
+          log.actorName.toLowerCase().includes(searchTerm.toLowerCase())
       );
-  }, [activeFilters, searchTerm]);
+  }, [logs, activeFilters, searchTerm]);
 
   return (
     <div>
@@ -122,12 +90,11 @@ export default function ActivityLogsPage() {
         A chronological record of all significant actions within the system.
       </p>
 
-      {/* Filter and Search Controls */}
       <div className="p-4 rounded-xl border border-white/10 bg-slate-900/20 mb-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <select
             onChange={(e) => handleFilterChange("userType", e.target.value)}
-            className="w-full appearance-none rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold">
+            className="w-full form-input">
             <option value="All">All User Types</option>
             {filters.userType.slice(1).map((f) => (
               <option key={f} value={f}>
@@ -137,7 +104,7 @@ export default function ActivityLogsPage() {
           </select>
           <select
             onChange={(e) => handleFilterChange("actionType", e.target.value)}
-            className="w-full appearance-none rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold">
+            className="w-full form-input">
             <option value="All">All Action Types</option>
             {filters.actionType.slice(1).map((f) => (
               <option key={f} value={f}>
@@ -145,10 +112,9 @@ export default function ActivityLogsPage() {
               </option>
             ))}
           </select>
-          {/* Add a date range picker here in a real app */}
           <input
             type="text"
-            value="Last 7 Days"
+            value="All Time"
             readOnly
             className="w-full cursor-not-allowed rounded-lg border border-white/10 bg-slate-900/50 p-3 text-slate-400"
           />
@@ -165,46 +131,61 @@ export default function ActivityLogsPage() {
         </div>
       </div>
 
-      {/* Log List */}
-      <motion.div
-        className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}>
-        <div className="divide-y divide-slate-700/50">
-          {filteredLogs.map((log) => {
-            const details = logTypeDetails[log.type] || {
-              Icon: GitBranch,
-              color: "text-slate-400",
-            };
-            const ActorIcon =
-              log.actor.role === "Admin"
-                ? Shield
-                : log.actor.role === "Teacher"
-                ? UserCircle
-                : User;
-            return (
-              <div key={log.id} className="p-4 flex items-start gap-4">
-                <div className={`mt-1 ${details.color}`}>
-                  <details.Icon size={18} />
-                </div>
-                <div className="flex-grow">
-                  <p className="font-medium text-light-slate">{log.action}</p>
-                  <div className="flex items-center gap-4 text-xs text-slate mt-1">
-                    <span className="flex items-center gap-1.5">
-                      <ActorIcon size={12} /> {log.actor.name} ({log.actor.role}
-                      )
-                    </span>
-                    <span>
-                      {format(log.timestamp, "MMM d, yyyy, h:mm:ss a")}
-                    </span>
-                    <span>IP: {log.ip}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {loading ? (
+        <div className="flex justify-center items-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
         </div>
-      </motion.div>
+      ) : (
+        <motion.div
+          className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}>
+          <div className="divide-y divide-slate-700/50">
+            {filteredLogs.length > 0 ? (
+              filteredLogs.map((log) => {
+                const details = logTypeDetails[log.type] || {
+                  Icon: GitBranch,
+                  color: "text-slate-400",
+                };
+                const ActorIcon =
+                  log.actorRole === "Admin"
+                    ? Shield
+                    : log.actorRole === "Teacher"
+                    ? UserCircle
+                    : User;
+                return (
+                  <div key={log.id} className="p-4 flex items-start gap-4">
+                    <div className={`mt-1 ${details.color}`}>
+                      <details.Icon size={18} />
+                    </div>
+                    <div className="flex-grow">
+                      <p className="font-medium text-light-slate">
+                        {log.action}
+                      </p>
+                      <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-slate mt-1">
+                        <span className="flex items-center gap-1.5">
+                          <ActorIcon size={12} /> {log.actorName} (
+                          {log.actorRole})
+                        </span>
+                        <span>
+                          {formatDistanceToNow(log.timestamp.toDate(), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                        {log.ipAddress && <span>IP: {log.ipAddress}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center p-8 text-slate">
+                No logs found matching your criteria.
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

@@ -3,9 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+// import { useAuth } from "@/context/AuthContext"; // We'll use this later
 
-// --- EXPANDED ICON IMPORTS FOR ALL ROLES ---
+// --- ICON IMPORTS ---
 import {
   LayoutDashboard,
   BookOpen,
@@ -24,7 +24,6 @@ import {
   Users,
   BookMarked,
   FolderUp,
-  Upload,
   School,
   Library,
   UserPlus,
@@ -136,13 +135,13 @@ const teacherNavItems = [
   { type: "divider" },
   {
     href: "/portal/teacher-dashboard/announcements",
-    label: "Post Announcement",
+    label: "Announcements",
     Icon: Megaphone,
   },
   {
     href: "/portal/teacher-dashboard/gallery",
     label: "Manage Gallery",
-    Icon: Upload,
+    Icon: ImageIcon,
   },
   { type: "divider" },
   { href: "/portal/teacher-dashboard/profile", label: "Profile", Icon: User },
@@ -153,7 +152,7 @@ const teacherNavItems = [
   },
 ];
 
-// --- ADMIN NAV ITEMS (URLs Corrected) ---
+// --- ADMIN NAV ITEMS ---
 const adminNavItems = [
   {
     href: "/portal/admin-dashboard",
@@ -189,17 +188,17 @@ const adminNavItems = [
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/announcements",
-    label: "Manage Announcements",
+    label: "Announcements",
     Icon: Megaphone,
   },
   {
     href: "/portal/admin-dashboard/materials",
-    label: "Manage Study Materials",
+    label: "Study Materials",
     Icon: FolderUp,
   },
   {
     href: "/portal/admin-dashboard/gallery",
-    label: "Manage Gallery",
+    label: "Gallery",
     Icon: ImageIcon,
   },
   { type: "divider" },
@@ -210,7 +209,7 @@ const adminNavItems = [
   },
   {
     href: "/portal/admin-dashboard/payroll",
-    label: "Teacher Payroll",
+    label: "Expenses",
     Icon: Banknote,
   },
   { type: "divider" },
@@ -226,13 +225,13 @@ const adminNavItems = [
   },
   {
     href: "/portal/admin-dashboard/testimonials",
-    label: "Manage Testimonials",
+    label: "Testimonials",
     Icon: MessageCircle,
   },
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/analytics",
-    label: "Analytics & Reports",
+    label: "Analytics",
     Icon: BarChart2,
   },
   {
@@ -248,10 +247,13 @@ const adminNavItems = [
 ];
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  // const { user, logout } = useAuth(); // We'll enable this with real auth
   const pathname = usePathname();
 
-  // Logic to select the correct navigation list based on user role
+  // --- MOCK USER & LOGOUT FOR STYLING ---
+  const user = { name: "Admin User", role: "Admin" };
+  const logout = () => console.log("Logout clicked!");
+
   const navItems = pathname.startsWith("/portal/admin-dashboard")
     ? adminNavItems
     : pathname.startsWith("/portal/teacher-dashboard")
@@ -259,19 +261,24 @@ export default function Sidebar() {
     : studentNavItems;
 
   return (
-    <aside className="sticky top-0 h-screen w-64 flex-shrink-0 border-r border-white/10 bg-dark-navy/50 p-6 backdrop-blur-lg overflow-y-auto">
-      <div className="flex h-full flex-col">
-        <div className="mb-8">
+    // THE FIX: Solid background, no more blur
+    <aside className="sticky top-0 h-screen w-64 border-r border-white/10 bg-dark-navy">
+      <div className="flex h-full flex-col p-6">
+        {/* THE FIX: Better logo container for proper sizing */}
+        <div className="mb-8 px-4">
           <Link href="/">
             <Image
-              src="/logo.svg"
+              src="/logo1.svg"
               alt="Brightspark Logo"
-              width={160}
-              height={32}
+              width={200} // Increased base width
+              height={40} // Increased base height
+              className="w-full h-auto" // Makes it responsive within the container
             />
           </Link>
         </div>
-        <nav className="flex-grow">
+
+        {/* The navigation grows to fill the space */}
+        <nav className="flex-grow overflow-y-auto pr-2">
           <ul className="space-y-2">
             {navItems.map((item, index) =>
               item.type === "divider" ? (
@@ -282,7 +289,7 @@ export default function Sidebar() {
                 <li key={item.label}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                       pathname === item.href
                         ? "bg-brand-gold text-dark-navy"
                         : "text-slate hover:bg-white/10 hover:text-white"
@@ -295,25 +302,28 @@ export default function Sidebar() {
             )}
           </ul>
         </nav>
+
+        {/* THE FIX: Improved Logout section sticks to the bottom */}
         <div className="mt-auto border-t border-white/10 pt-4 shrink-0">
           {user && (
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold">
-                {user.displayName
-                  ? user.displayName.charAt(0).toUpperCase()
-                  : user.email?.charAt(0).toUpperCase()}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold">
+                  {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white truncate">
+                    {user.name}
+                  </p>
+                  <p className="text-xs text-slate">{user.role}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white truncate">
-                  {user.displayName || user.email}
-                </p>
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-2 text-xs text-slate hover:text-brand-gold">
-                  <LogOut className="h-3 w-3" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
+              <button
+                onClick={logout}
+                className="p-2 text-slate-400 rounded-md hover:bg-white/10 hover:text-red-400 transition-colors"
+                title="Sign Out">
+                <LogOut className="h-5 w-5" />
+              </button>
             </div>
           )}
         </div>

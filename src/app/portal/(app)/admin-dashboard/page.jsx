@@ -1,6 +1,15 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { db } from "@/firebase/config";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 import {
   BarChart,
   Bar,
@@ -14,58 +23,12 @@ import {
   UserCircle,
   BookCopy,
   IndianRupee,
-  Activity,
   School,
-  ClipboardCheck,
-  MessageSquare,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
-
-// --- MOCK DATA FOR ADMIN DASHBOARD ---
-const mockAdminData = {
-  stats: {
-    totalStudents: 152,
-    totalTeachers: 12,
-    activeBatches: 8,
-    monthlyRevenue: "1,50,000",
-  },
-  recentActivity: [
-    {
-      id: 1,
-      text: "New student 'Priya Singh' enrolled in Class VII.",
-      time: "2h ago",
-    },
-    {
-      id: 2,
-      text: "Mr. Sharma posted a new assignment for Mathematics VI.",
-      time: "5h ago",
-    },
-    {
-      id: 3,
-      text: "Payment of ₹5,000 received from Alex Rider.",
-      time: "8h ago",
-    },
-    {
-      id: 4,
-      text: "Mrs. Gupta updated the Science VI study materials.",
-      time: "Yesterday",
-    },
-  ],
-  atAGlance: {
-    pendingSubmissions: 15,
-    unreadMessages: 3,
-  },
-  studentDistribution: [
-    { class: "IV", students: 15 },
-    { class: "V", students: 20 },
-    { class: "VI", students: 35 },
-    { class: "VII", students: 32 },
-    { class: "VIII", students: 25 },
-    { class: "IX", students: 15 },
-    { class: "X", students: 10 },
-  ],
-};
+import { startOfMonth, endOfMonth, formatDistanceToNow } from "date-fns";
 
 // --- Reusable Components ---
 const StatCard = ({ title, value, Icon, prefix = "" }) => (
@@ -90,7 +53,11 @@ const AdminChart = ({ data }) => (
           stroke="#8892b0"
           tick={{ fill: "#8892b0", fontSize: 12 }}
         />
-        <YAxis stroke="#8892b0" tick={{ fill: "#8892b0", fontSize: 12 }} />
+        <YAxis
+          stroke="#8892b0"
+          tick={{ fill: "#8892b0", fontSize: 12 }}
+          allowDecimals={false}
+        />
         <Tooltip
           cursor={{ fill: "rgba(136, 146, 176, 0.1)" }}
           contentStyle={{
@@ -111,31 +78,111 @@ const AdminChart = ({ data }) => (
 );
 
 export default function AdminDashboardPage() {
-  const adminName = "Admin";
+  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const adminName = "Admin"; // This can be replaced with auth user name later
 
-  // --- NEW: Links now match the admin sidebar for consistency ---
+  useEffect(() => {
+    const collectionsToFetch = [
+      { setter: setStudents, q: query(collection(db, "students")) },
+      { setter: setTeachers, q: query(collection(db, "teachers")) },
+      { setter: setBatches, q: query(collection(db, "batches")) },
+      { setter: setTransactions, q: query(collection(db, "feeTransactions")) },
+      {
+        setter: setRecentLogs,
+        q: query(
+          collection(db, "activityLogs"),
+          orderBy("timestamp", "desc"),
+          limit(5)
+        ),
+      },
+    ];
+
+    const unsubs = collectionsToFetch.map(({ q, setter }) =>
+      onSnapshot(q, (snapshot) => {
+        setter(
+          snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((doc) => doc.id !== "--placeholder--")
+        );
+      })
+    );
+
+    setTimeout(() => setLoading(false), 1500);
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, []);
+
+  const dashboardData = useMemo(() => {
+    const today = new Date();
+    const monthStart = startOfMonth(today);
+
+    const totalStudents = students.length;
+    const totalTeachers = teachers.length;
+    const activeBatches = batches.filter((b) => b.status === "Active").length;
+    const monthlyRevenue = transactions
+      .filter(
+        (t) =>
+          t.status === "Paid" &&
+          t.paymentDate &&
+          t.paymentDate.toDate() >= monthStart
+      )
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const studentDistribution = students.reduce((acc, student) => {
+      const batch = batches.find((b) => b.name === student.batch);
+      const classLevel = batch?.classLevel || "Unassigned";
+      acc[classLevel] = (acc[classLevel] || 0) + 1;
+      return acc;
+    }, {});
+
+    const chartData = Object.keys(studentDistribution)
+      .map((key) => ({
+        class: key.replace("Class ", ""),
+        students: studentDistribution[key],
+      }))
+      .sort((a, b) => a.class.localeCompare(b.class));
+
+    return {
+      stats: { totalStudents, totalTeachers, activeBatches, monthlyRevenue },
+      studentDistribution: chartData,
+    };
+  }, [students, teachers, batches, transactions]);
+
   const quickManagementLinks = [
     {
       label: "Manage Batches",
-      href: "/portal/admin-dashboard/academics/batches",
+      href: "/portal/admin-dashboard/batches",
       Icon: School,
     },
     {
       label: "Manage Students",
-      href: "/portal/admin-dashboard/users/students",
+      href: "/portal/admin-dashboard/students",
       Icon: Users,
     },
     {
       label: "Manage Teachers",
-      href: "/portal/admin-dashboard/users/teachers",
+      href: "/portal/admin-dashboard/teachers",
       Icon: UserCircle,
     },
     {
       label: "Fee Management",
-      href: "/portal/admin-dashboard/financials/fees",
+      href: "/portal/admin-dashboard/fees",
       Icon: IndianRupee,
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -144,84 +191,61 @@ export default function AdminDashboardPage() {
       </h1>
       <p className="text-lg text-slate mb-8">
         Welcome back, <span className="text-brand-gold">{adminName}</span>.
-        Here's an overview of the institute.
+        Here's a real-time overview of the institute.
       </p>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Total Students"
-          value={mockAdminData.stats.totalStudents}
+          value={dashboardData.stats.totalStudents}
           Icon={Users}
         />
         <StatCard
           title="Total Teachers"
-          value={mockAdminData.stats.totalTeachers}
+          value={dashboardData.stats.totalTeachers}
           Icon={UserCircle}
         />
         <StatCard
           title="Active Batches"
-          value={mockAdminData.stats.activeBatches}
+          value={dashboardData.stats.activeBatches}
           Icon={BookCopy}
         />
         <StatCard
           title="This Month's Revenue"
-          value={mockAdminData.stats.monthlyRevenue}
+          value={dashboardData.stats.monthlyRevenue.toLocaleString("en-IN")}
           Icon={IndianRupee}
           prefix="₹"
         />
       </div>
 
-      {/* Main Dashboard Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column */}
         <motion.div
-          className="lg:col-span-2 space-y-6"
+          className="lg:col-span-2"
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}>
+          animate={{ opacity: 1, y: 0 }}>
           <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
             <h3 className="text-lg font-semibold text-brand-gold mb-4">
-              Student Distribution by Class
+              Student Distribution
             </h3>
-            <AdminChart data={mockAdminData.studentDistribution} />
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
-            <h3 className="text-lg font-semibold text-brand-gold mb-4">
-              Recent Activity
-            </h3>
-            <div className="space-y-3">
-              {mockAdminData.recentActivity.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between items-center text-sm p-2">
-                  <p className="text-slate-300">{item.text}</p>
-                  <p className="text-xs text-slate shrink-0 ml-4">
-                    {item.time}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <AdminChart data={dashboardData.studentDistribution} />
           </div>
         </motion.div>
 
-        {/* Right Column */}
         <motion.div
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}>
+          transition={{ delay: 0.1 }}>
           <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
             <h3 className="text-lg font-semibold text-brand-gold mb-4">
               Quick Management
             </h3>
             <div className="space-y-3">
-              {/* --- UPDATED LINKS --- */}
               {quickManagementLinks.map((link) => (
                 <Link
                   key={link.label}
                   href={link.href}
-                  className="flex items-center justify-between p-3 rounded-lg text-slate hover:text-light-slate hover:bg-slate-800/50">
+                  className="flex items-center justify-between p-3 rounded-lg text-slate hover:text-light-slate hover:bg-slate-800/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <link.Icon className="h-5 w-5 text-slate-400" />
                     <span className="font-medium">{link.label}</span>
@@ -233,27 +257,29 @@ export default function AdminDashboardPage() {
           </div>
           <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
             <h3 className="text-lg font-semibold text-brand-gold mb-4">
-              At a Glance
+              Recent Activity
             </h3>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <ClipboardCheck className="h-5 w-5 text-slate-400" />
-                <p>
-                  <span className="font-bold text-light-slate">
-                    {mockAdminData.atAGlance.pendingSubmissions}
-                  </span>{" "}
-                  assignments need grading.
+            <div className="space-y-3">
+              {recentLogs.length > 0 ? (
+                recentLogs.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center text-sm p-2 border-b border-slate-800/50 last:border-b-0">
+                    <p className="text-slate-300 pr-4">{item.action}</p>
+                    <p className="text-xs text-slate shrink-0">
+                      {item.timestamp
+                        ? formatDistanceToNow(item.timestamp.toDate(), {
+                            addSuffix: true,
+                          })
+                        : ""}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate text-center py-4">
+                  No recent activity to display.
                 </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <MessageSquare className="h-5 w-5 text-slate-400" />
-                <p>
-                  <span className="font-bold text-light-slate">
-                    {mockAdminData.atAGlance.unreadMessages}
-                  </span>{" "}
-                  unread support messages.
-                </p>
-              </div>
+              )}
             </div>
           </div>
         </motion.div>

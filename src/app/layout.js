@@ -1,6 +1,5 @@
 import { Poppins } from "next/font/google"; // Or your chosen font
 import "./globals.css";
-import { AuthProvider } from "@/context/AuthContext";
 
 
 const poppins = Poppins({
@@ -19,9 +18,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${poppins.variable} website-bg font-sans text-light-slate antialiased`}>
-        <AuthProvider>
+
           {children}
-        </AuthProvider>
+
       </body>
     </html>
   );

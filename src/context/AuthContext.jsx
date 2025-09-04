@@ -1,52 +1,31 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import {
+  getAuth,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { auth, db } from "@/firebase/config";
-import { doc, getDoc } from "firebase/firestore";
+import { app } from "@/firebase/config"; // Assuming your firebase config is exported from here
 
-export const AuthContext = createContext();
+const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        console.log("Auth user found:", user.uid); // Debug log 1
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const userData = {
-            uid: user.uid,
-            email: user.email,
-            ...docSnap.data(),
-          };
-          console.log("User profile found in Firestore:", userData); // Debug log 2
-          setUser(userData);
-        } else {
-          console.warn(
-            "User exists in Auth, but not in Firestore 'users' collection."
-          ); // Debug log 3
-          setUser({ uid: user.uid, email: user.email, role: null });
-        }
-      } else {
-        setUser(null);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, []);
+  }, [auth]);
 
-  // ... (login and logout functions are unchanged)
   const login = (email, password) => {
     return signInWithEmailAndPassword(auth, email, password);
   };
@@ -56,9 +35,11 @@ export const AuthProvider = ({ children }) => {
     await signOut(auth);
   };
 
+  const value = { user, loading, login, logout };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

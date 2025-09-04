@@ -1,0 +1,39 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/firebase/config';
+import { collection, doc, setDoc, getDocs, Timestamp } from 'firebase/firestore';
+
+// Helper function to check if a collection is empty and initialize it with a placeholder.
+async function initializeCollection(collectionName) {
+    const collectionRef = collection(db, collectionName);
+    const snapshot = await getDocs(collectionRef);
+
+    if (snapshot.empty) {
+        // Add a single placeholder document. This is enough to create the collection in Firestore.
+        const placeholderRef = doc(collectionRef, '--placeholder--');
+        await setDoc(placeholderRef, { initialized: true, createdAt: Timestamp.now() });
+        console.log(`Collection '${collectionName}' was empty. Initialized with a placeholder.`);
+        return `Collection '${collectionName}' created.`;
+    } else {
+        console.log(`Collection '${collectionName}' already exists. No action taken.`);
+        return `Collection '${collectionName}' already exists.`;
+    }
+}
+
+export async function GET() {
+    try {
+        console.log("Database initialization process started...");
+
+        // Initialize only the collections needed for Layer 0.
+        const teacherStatus = await initializeCollection('teachers');
+        const subjectStatus = await initializeCollection('subjects');
+
+        console.log("Database initialization process finished.");
+        return NextResponse.json({
+            message: 'Initialization complete. Collections are ready but empty.',
+            details: [teacherStatus, subjectStatus]
+        });
+    } catch (error) {
+        console.error("Error initializing database:", error);
+        return NextResponse.json({ error: 'Failed to initialize database' }, { status: 500 });
+    }
+}
