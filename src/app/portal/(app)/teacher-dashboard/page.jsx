@@ -10,12 +10,12 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext"; // Import the useAuth hook
 import {
   Users,
   BookCopy,
   ClipboardCheck,
   Clock,
-  Megaphone,
   PlusCircle,
   ChevronRight,
   Loader2,
@@ -28,7 +28,7 @@ import {
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
-// --- Reusable Components ---
+// --- Reusable Components (No changes needed here) ---
 const StatCard = ({ title, value, Icon }) => (
   <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
     <div className="flex items-center gap-3 mb-2">
@@ -38,7 +38,6 @@ const StatCard = ({ title, value, Icon }) => (
     <p className="text-3xl font-bold text-light-slate">{value}</p>
   </div>
 );
-
 const DashboardSection = ({ title, children, actionButton }) => (
   <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg h-full flex flex-col">
     <div className="flex justify-between items-center mb-4">
@@ -50,58 +49,65 @@ const DashboardSection = ({ title, children, actionButton }) => (
 );
 
 export default function TeacherDashboardPage() {
-  const [loading, setLoading] = useState(true);
+  // Use the loading state from AuthContext as the primary loader
+  const { user, loading: authLoading } = useAuth();
+
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
 
+  // This useEffect now depends on the `user` object.
+  // It will only run AFTER the user is confirmed to be logged in.
   useEffect(() => {
-    setLoading(true);
-    // Fetch institute-wide data, no teacher filtering
-    const qStudents = query(collection(db, "students"));
-    const unsubStudents = onSnapshot(qStudents, (snap) =>
-      setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
+    if (user) {
+      // <-- THE FIX: Only fetch data if a user exists
+      const qStudents = query(collection(db, "students"));
+      const unsubStudents = onSnapshot(qStudents, (snap) =>
+        setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
 
-    const qBatches = query(collection(db, "batches"), orderBy("name"));
-    const unsubBatches = onSnapshot(qBatches, (snap) =>
-      setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
+      const qBatches = query(collection(db, "batches"), orderBy("name"));
+      const unsubBatches = onSnapshot(qBatches, (snap) =>
+        setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
 
-    const qAnnouncements = query(
-      collection(db, "announcements"),
-      orderBy("createdAt", "desc"),
-      limit(3)
-    );
-    const unsubAnnouncements = onSnapshot(qAnnouncements, (snap) =>
-      setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
+      const qAnnouncements = query(
+        collection(db, "announcements"),
+        orderBy("createdAt", "desc"),
+        limit(3)
+      );
+      const unsubAnnouncements = onSnapshot(qAnnouncements, (snap) =>
+        setAnnouncements(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
 
-    setTimeout(() => setLoading(false), 1500);
-
-    return () => {
-      unsubStudents();
-      unsubBatches();
-      unsubAnnouncements();
-    };
-  }, []);
+      return () => {
+        unsubStudents();
+        unsubBatches();
+        unsubAnnouncements();
+      };
+    }
+  }, [user]); // <-- THE FIX: Add `user` as a dependency
 
   const dashboardData = useMemo(() => {
+    if (!user) return { stats: {}, announcements: [] }; // Return empty data if no user
+
     const activeBatchesCount = batches.filter(
       (b) => b.status === "Active"
     ).length;
     const totalStudentsCount = students.length;
+
+    const relevantAnnouncements = announcements.filter(
+      (ann) => ann.id !== "--placeholder--"
+    );
 
     return {
       stats: {
         activeBatches: activeBatchesCount,
         totalStudents: totalStudentsCount,
       },
-      announcements: announcements.filter(
-        (ann) => ann.id !== "--placeholder--"
-      ),
+      announcements: relevantAnnouncements,
     };
-  }, [batches, students, announcements]);
+  }, [user, batches, students, announcements]);
 
   const quickLinks = [
     {
@@ -136,7 +142,8 @@ export default function TeacherDashboardPage() {
     },
   ];
 
-  if (loading) {
+  // Use the loading state from AuthContext
+  if (authLoading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-200px)]">
         <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
@@ -149,8 +156,10 @@ export default function TeacherDashboardPage() {
       <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-2">
         Teacher Dashboard
       </h1>
+      {/* Use the real user's name from the context */}
       <p className="text-lg text-slate mb-8">
-        Welcome! Here's a summary of institute activities.
+        Welcome back,{" "}
+        <span className="text-brand-gold">{user?.name || user?.email}</span>
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -228,15 +237,21 @@ export default function TeacherDashboardPage() {
           </DashboardSection>
 
           <DashboardSection title="All Batches">
-            {batches.map((batch) => (
-              <Link
-                key={batch.id}
-                href="/portal/teacher-dashboard/students"
-                className="flex items-center justify-between p-3 rounded-lg text-slate hover:text-light-slate hover:bg-slate-800/50">
-                <span className="font-medium">{batch.name}</span>
-                <ChevronRight size={16} />
-              </Link>
-            ))}
+            {batches.length > 0 ? (
+              batches.map((batch) => (
+                <Link
+                  key={batch.id}
+                  href="/portal/teacher-dashboard/students"
+                  className="flex items-center justify-between p-3 rounded-lg text-slate hover:text-light-slate hover:bg-slate-800/50">
+                  <span className="font-medium">{batch.name}</span>
+                  <ChevronRight size={16} />
+                </Link>
+              ))
+            ) : (
+              <p className="text-sm text-slate text-center py-4">
+                No batches found.
+              </p>
+            )}
           </DashboardSection>
         </motion.div>
       </div>

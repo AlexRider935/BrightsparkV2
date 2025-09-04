@@ -3,7 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-// import { useAuth } from "@/context/AuthContext"; // We'll use this later
+// --- THE FIX IS HERE (Step 1) ---
+// We import our custom useAuth hook to get the real user and logout function
+import { useAuth } from "@/context/AuthContext";
 
 // --- ICON IMPORTS ---
 import {
@@ -247,12 +249,14 @@ const adminNavItems = [
 ];
 
 export default function Sidebar() {
-  // const { user, logout } = useAuth(); // We'll enable this with real auth
   const pathname = usePathname();
+  // --- THE FIX IS HERE (Step 2) ---
+  // We get the REAL user and logout function from our AuthContext
+  const { user, logout } = useAuth();
 
-  // --- MOCK USER & LOGOUT FOR STYLING ---
-  const user = { name: "Admin User", role: "Admin" };
-  const logout = () => console.log("Logout clicked!");
+  // Now we can remove the old mock user and logout function
+  // const user = { name: "Admin User", role: "Admin" }; // <-- REMOVED
+  // const logout = () => console.log("Logout clicked!"); // <-- REMOVED
 
   const navItems = pathname.startsWith("/portal/admin-dashboard")
     ? adminNavItems
@@ -261,23 +265,20 @@ export default function Sidebar() {
     : studentNavItems;
 
   return (
-    // THE FIX: Solid background, no more blur
     <aside className="sticky top-0 h-screen w-64 border-r border-white/10 bg-dark-navy">
       <div className="flex h-full flex-col p-6">
-        {/* THE FIX: Better logo container for proper sizing */}
         <div className="mb-8 px-4">
           <Link href="/">
             <Image
               src="/logo1.svg"
               alt="Brightspark Logo"
-              width={200} // Increased base width
-              height={40} // Increased base height
-              className="w-full h-auto" // Makes it responsive within the container
+              width={200}
+              height={40}
+              className="w-full h-auto"
             />
           </Link>
         </div>
 
-        {/* The navigation grows to fill the space */}
         <nav className="flex-grow overflow-y-auto pr-2">
           <ul className="space-y-2">
             {navItems.map((item, index) =>
@@ -303,24 +304,25 @@ export default function Sidebar() {
           </ul>
         </nav>
 
-        {/* THE FIX: Improved Logout section sticks to the bottom */}
         <div className="mt-auto border-t border-white/10 pt-4 shrink-0">
           {user && (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold">
-                  {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="h-9 w-9 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold shrink-0">
+                  {user.name
+                    ? user.name.charAt(0).toUpperCase()
+                    : user.email.charAt(0).toUpperCase()}
                 </div>
-                <div>
+                <div className="overflow-hidden">
                   <p className="text-sm font-semibold text-white truncate">
-                    {user.name}
+                    {user.name || user.email}
                   </p>
-                  <p className="text-xs text-slate">{user.role}</p>
+                  <p className="text-xs text-slate capitalize">{user.role}</p>
                 </div>
               </div>
               <button
                 onClick={logout}
-                className="p-2 text-slate-400 rounded-md hover:bg-white/10 hover:text-red-400 transition-colors"
+                className="p-2 text-slate-400 rounded-md hover:bg-white/10 hover:text-red-400 transition-colors shrink-0"
                 title="Sign Out">
                 <LogOut className="h-5 w-5" />
               </button>

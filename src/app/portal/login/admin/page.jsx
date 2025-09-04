@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useContext } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 import {
   Mail,
   Lock,
   LogIn,
-  KeyRound,
   ShieldCheck,
   Users,
   BookMarked,
   LayoutTemplate,
+  AlertTriangle,
 } from "lucide-react";
-import { AuthContext } from "@/context/AuthContext";
 import Image from "next/image";
+import { format } from "date-fns";
 
 // Reusable component for floating-label inputs
 const FloatingLabelInput = ({
@@ -61,18 +62,32 @@ const FloatingLabelInput = ({
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login } = useContext(AuthContext);
+  const { login, user } = useAuth();
   const router = useRouter();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // If a user is already logged in, redirect them
+  useEffect(() => {
+    if (user) {
+      // Simple redirect for now. Role-based redirect will be in the layout.
+      router.push("/portal/admin-dashboard");
+    }
+  }, [user, router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      await login(email, password, "admin");
+      await login(email, password);
+      // The AuthContext and protected layout will handle role checking and redirection.
       router.push("/portal/admin-dashboard");
     } catch (err) {
       setError("Invalid credentials or insufficient permissions.");
@@ -83,13 +98,12 @@ export default function AdminLoginPage() {
 
   const adminFeatures = [
     { Icon: Users, text: "Manage Students & Faculty" },
-    { Icon: BookMarked, text: "Publish Results & Assignments" },
+    { Icon: BookMarked, text: "Oversee Academic Progress" },
     { Icon: LayoutTemplate, text: "Update Website Content" },
   ];
 
   return (
     <main className="flex min-h-screen w-full flex-col lg:flex-row">
-      {/* Left Panel: Branding & Features */}
       <motion.div
         className="relative hidden flex-col justify-center bg-dark-navy p-12 text-left lg:flex lg:w-1/2"
         initial={{ x: "-100%" }}
@@ -128,7 +142,6 @@ export default function AdminLoginPage() {
         />
       </motion.div>
 
-      {/* Right Panel: Advanced Login Form */}
       <div className="flex w-full items-center justify-center bg-dark-navy/95 p-6 lg:w-1/2 lg:p-12">
         <motion.div
           className="relative w-full max-w-md"
@@ -160,8 +173,7 @@ export default function AdminLoginPage() {
               </h2>
             </div>
             <div className="text-center text-xs text-slate border-t border-b border-white/10 py-3">
-              <p>Tuesday, September 2, 2025, 3:45 PM</p>
-              <p>IP Address: 115.241.224.18 (Udaipur, IN)</p>
+              <p>{format(currentTime, "eeee, MMMM d, yyyy, h:mm:ss a")}</p>
             </div>
             <form onSubmit={handleLogin} className="space-y-5">
               <FloatingLabelInput
@@ -180,32 +192,22 @@ export default function AdminLoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 icon={Lock}
               />
-              <FloatingLabelInput
-                id="otp"
-                label="6-Digit Authenticator Code"
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                icon={KeyRound}
-                maxLength="6"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-              />
               <AnimatePresence>
                 {error && (
                   <motion.p
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="text-center text-sm text-red-400">
-                    {error}
+                    className="text-center text-sm text-red-400 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    <span>{error}</span>
                   </motion.p>
                 )}
               </AnimatePresence>
               <motion.button
                 type="submit"
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-gold p-4 text-lg font-bold text-dark-navy transition-all duration-300 hover:bg-yellow-400 hover:shadow-lg hover:shadow-brand-gold/20 disabled:cursor-not-allowed disabled:bg-slate-600"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-gold p-4 text-lg font-bold text-dark-navy transition-all duration-300 hover:bg-yellow-400 disabled:bg-slate-600"
                 whileTap={{ scale: 0.98 }}>
                 {isLoading ? (
                   <motion.div
