@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, LogIn } from "lucide-react";
 import Link from "next/link";
-import { AuthContext } from "@/context/AuthContext";
+// --- THE FIX IS HERE ---
+// Changed from: import { AuthContext } from "@/context/AuthContext";
+// To:
+import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 
 // A reusable component for the new floating-label inputs
@@ -18,7 +21,6 @@ const FloatingLabelInput = ({
   icon: Icon,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -36,7 +38,7 @@ const FloatingLabelInput = ({
         onChange={onChange}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        placeholder=" " // The space is crucial for the :placeholder-shown selector to work
+        placeholder=" "
         required
         className="peer block w-full appearance-none rounded-lg border border-slate/30 bg-dark-navy/60 p-4 pl-12 text-light-slate backdrop-blur-sm transition-colors duration-300 focus:border-brand-gold focus:outline-none focus:ring-0"
       />
@@ -54,7 +56,10 @@ const StudentLoginPage = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { login } = useContext(AuthContext);
+  // --- AND THE FIX IS HERE ---
+  // Changed from: const { login } = useContext(AuthContext);
+  // To:
+  const { login } = useAuth();
   const router = useRouter();
 
   const handleLogin = async (e) => {
@@ -62,10 +67,11 @@ const StudentLoginPage = () => {
     setIsLoading(true);
     setError("");
     try {
-      await login(email, password, "student");
+      // We'll add the "student" role check later if needed
+      await login(email, password);
       router.push("/portal/student-dashboard");
     } catch (err) {
-      setError("Invalid credentials or server error.");
+      setError("Invalid credentials. Please check your email and password.");
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +79,6 @@ const StudentLoginPage = () => {
 
   return (
     <main className="flex min-h-screen w-full flex-col lg:flex-row">
-      {/* Left Panel: Branding & Welcome Message */}
       <motion.div
         className="relative hidden flex-col items-center justify-center bg-dark-navy p-12 text-center lg:flex lg:w-1/2"
         initial={{ x: "-100%" }}
@@ -93,7 +98,6 @@ const StudentLoginPage = () => {
             your dashboard.
           </p>
         </div>
-        {/* Abstract background grid */}
         <div
           className="absolute inset-0 z-0"
           style={{
@@ -104,14 +108,12 @@ const StudentLoginPage = () => {
         />
       </motion.div>
 
-      {/* Right Panel: Login Form */}
       <div className="flex w-full items-center justify-center bg-dark-navy/95 p-6 lg:w-1/2 lg:p-12">
         <motion.div
           className="relative w-full max-w-md"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}>
-          {/* Animated Aurora Background */}
           <div className="absolute -inset-4 z-0 opacity-20">
             <motion.div
               className="absolute -bottom-10 -right-10 h-40 w-72 rounded-full bg-brand-gold blur-3xl"
@@ -138,7 +140,6 @@ const StudentLoginPage = () => {
                 Student Account
               </h2>
             </div>
-
             <form onSubmit={handleLogin} className="space-y-6">
               <FloatingLabelInput
                 id="email"
