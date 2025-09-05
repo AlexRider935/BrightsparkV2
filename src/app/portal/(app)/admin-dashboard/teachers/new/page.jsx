@@ -17,14 +17,12 @@ import {
   Loader2,
   KeyRound,
   User as UserIcon,
-  ClipboardUser,
-  Shield,
-  NotebookPen,
-  UserCheck,
-  ChevronDown,
+  Briefcase,
+  Check,
   BookMarked,
   Home,
-  Check,
+  Landmark,
+  UserCheck
 } from "lucide-react";
 import Link from "next/link";
 import ImageUploader from "../../../components/ImageUploader";
@@ -71,75 +69,69 @@ const CustomCheckbox = ({ id, label, value, checked, onChange }) => (
 );
 
 // --- MAIN PAGE COMPONENT ---
-export default function AddNewStudentPage() {
+export default function AddNewTeacherPage() {
   const router = useRouter();
   const [batches, setBatches] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const firstNameInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    photoURL: "", // <-- Add this new line
-    username: "",
+    photoURL: "",
+    email: "",
     password: "",
     firstName: "",
     lastName: "",
-    rollNumber: "",
+    employeeId: "",
     dob: "",
-    gender: "",
-    admissionDate: new Date().toISOString().split("T")[0],
-    batch: "",
-    status: "Active",
-    fatherName: "",
-    fatherContact: "",
-    motherName: "",
-    motherContact: "",
-    parentEmail: "",
+    guardianName: "",
+    joiningDate: new Date().toISOString().split("T")[0],
+    contact: "",
     whatsappNumber: "",
     addressStreet: "",
     addressState: "",
     addressPincode: "",
-    subjects: [],
     presentSchool: "",
-    specialRequest: "",
+    subjects: [],
+    batches: [],
+    status: "Active",
+    bankName: "",
+    accountHolderName: "",
+    accountNumber: "",
+    ifscCode: "",
+    bankBranchAddress: "",
+    upiNumber: "",
   });
 
   useEffect(() => {
     firstNameInputRef.current?.focus();
-    const qBatches = query(collection(db, "batches"), orderBy("name"));
-    const unsubBatches = onSnapshot(qBatches, (s) =>
-      setBatches(s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    const unsubBatches = onSnapshot(
+      query(collection(db, "batches"), orderBy("name")),
+      (s) => setBatches(s.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
-
-    const fetchSubjects = async () => {
-      setLoadingSubjects(true);
-      const snapshot = await getDocs(collection(db, "subjects"));
-      setSubjects(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      setLoadingSubjects(false);
+    const unsubSubjects = onSnapshot(
+      query(collection(db, "subjects"), orderBy("name")),
+      (s) => setSubjects(s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+    return () => {
+      unsubBatches();
+      unsubSubjects();
     };
-    fetchSubjects();
-
-    return () => unsubBatches();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({
-      ...p,
-      [name]: name === "username" ? value.replace(/\s/g, "") : value,
+  const handleChange = (e) =>
+    setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleArrayChange = (field, itemName, isChecked) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: isChecked
+        ? [...prev[field], itemName]
+        : prev[field].filter((i) => i !== itemName),
     }));
   };
 
-  const handleSubjectChange = (subjectName, isChecked) => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: isChecked
-        ? [...prev.subjects, subjectName]
-        : prev.subjects.filter((s) => s !== subjectName),
-    }));
-  };
   const handleUploadComplete = (url) => {
     setFormData((prev) => ({ ...prev, photoURL: url }));
   };
@@ -154,16 +146,17 @@ export default function AddNewStudentPage() {
     }
     setIsSaving(true);
     try {
-      const res = await fetch("/api/create-student", {
+      // NOTE: Ensure your API route is updated to handle all these new fields
+      const res = await fetch("/api/create-teacher", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Failed to enroll student.");
+        const err = await res.json();
+        throw new Error(err.error || "Failed to add teacher.");
       }
-      router.push("/portal/admin-dashboard/students");
+      router.push("/portal/admin-dashboard/teachers");
     } catch (err) {
       setError(err.message);
       setIsSaving(false);
@@ -177,16 +170,16 @@ export default function AddNewStudentPage() {
     <main>
       <div className="flex items-center gap-4 mb-8">
         <Link
-          href="/portal/admin-dashboard/students"
+          href="/portal/admin-dashboard/teachers"
           className="p-2 text-slate-400 hover:text-white rounded-md hover:bg-white/10 transition-all">
           <ArrowLeft size={20} />
         </Link>
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
-            Enroll New Student
+            Add New Teacher
           </h1>
           <p className="text-base text-slate">
-            Create a student profile and their portal login account.
+            Create a profile and portal login for a new faculty member.
           </p>
         </div>
       </div>
@@ -197,18 +190,18 @@ export default function AddNewStudentPage() {
         transition={{ duration: 0.5 }}>
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* --- Main Column (Left - 2/3 width) --- */}
+            {/* --- Main Column (Left) --- */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Photo + Profile Section */}
               <div className="flex flex-col md:flex-row gap-8 items-start p-6 rounded-xl border border-white/10 bg-slate-900/30 backdrop-blur-sm">
                 <div className="w-full md:w-auto flex justify-center shrink-0">
-                  <ImageUploader
-                    onUploadComplete={(url) =>
-                      setFormData((prev) => ({ ...prev, photoURL: url }))
-                    }
-                  />
+                  <ImageUploader onUploadComplete={handleUploadComplete} />
                 </div>
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-6">
+                  <div className="sm:col-span-2">
+                    <h2 className="text-lg font-semibold text-brand-gold tracking-wide mb-2">
+                      Personal & Role Details
+                    </h2>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slate mb-2">
                       First Name
@@ -236,11 +229,11 @@ export default function AddNewStudentPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate mb-2">
-                      Admission / Roll No.
+                      Employee ID
                     </label>
                     <input
-                      name="rollNumber"
-                      value={formData.rollNumber}
+                      name="employeeId"
+                      value={formData.employeeId}
                       onChange={handleChange}
                       required
                       className={formInputClasses}
@@ -255,92 +248,46 @@ export default function AddNewStudentPage() {
                       name="dob"
                       value={formData.dob}
                       onChange={handleChange}
+                      className={`${formInputClasses} pr-2`}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate mb-2">
+                      Father/Husband's Name
+                    </label>
+                    <input
+                      name="guardianName"
+                      value={formData.guardianName}
+                      onChange={handleChange}
+                      className={formInputClasses}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate mb-2">
+                      Joining Date
+                    </label>
+                    <input
+                      type="date"
+                      name="joiningDate"
+                      value={formData.joiningDate}
+                      onChange={handleChange}
                       required
                       className={`${formInputClasses} pr-2`}
                     />
                   </div>
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-slate mb-2">
-                      Gender
-                    </label>
-                    <select
-                      name="gender"
-                      value={formData.gender}
-                      onChange={handleChange}
-                      required
-                      className={`${formInputClasses} appearance-none pr-8`}>
-                      <option value="" disabled>
-                        Select...
-                      </option>
-                      <option>Male</option>
-                      <option>Female</option>
-                      <option>Other</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
-                  </div>
                 </div>
               </div>
-
-              <FormSection title="Guardian Information" icon={Shield}>
+              <FormSection title="Contact Information" icon={Home}>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-slate mb-2">
-                    Father’s Name
+                    Contact Number
                   </label>
                   <input
-                    name="fatherName"
-                    value={formData.fatherName}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Father’s Contact
-                  </label>
-                  <input
-                    name="fatherContact"
+                    name="contact"
                     maxLength="10"
-                    value={formData.fatherContact}
+                    value={formData.contact}
                     onChange={handleChange}
                     required
-                    className={formInputClasses}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Mother’s Name
-                  </label>
-                  <input
-                    name="motherName"
-                    value={formData.motherName}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Mother’s Contact
-                  </label>
-                  <input
-                    name="motherContact"
-                    maxLength="10"
-                    value={formData.motherContact}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Parent Email
-                  </label>
-                  <input
-                    type="email"
-                    name="parentEmail"
-                    value={formData.parentEmail}
-                    onChange={handleChange}
                     className={formInputClasses}
                   />
                 </div>
@@ -356,9 +303,6 @@ export default function AddNewStudentPage() {
                     className={formInputClasses}
                   />
                 </div>
-              </FormSection>
-
-              <FormSection title="Address Information" icon={Home}>
                 <div className="sm:col-span-4">
                   <label className="block text-sm font-medium text-slate mb-2">
                     Street / Area
@@ -393,22 +337,81 @@ export default function AddNewStudentPage() {
                   />
                 </div>
               </FormSection>
+              <FormSection title="Professional Assignments" icon={BookMarked}>
+                <div className="sm:col-span-4">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Present School Name
+                  </label>
+                  <input
+                    name="presentSchool"
+                    value={formData.presentSchool}
+                    onChange={handleChange}
+                    className={formInputClasses}
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Subjects Taught
+                  </label>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3 grid grid-cols-2 max-h-40 overflow-y-auto">
+                    {subjects.map((s) => (
+                      <CustomCheckbox
+                        key={s.id}
+                        id={`sub-${s.id}`}
+                        label={s.name}
+                        value={s.name}
+                        checked={formData.subjects.includes(s.name)}
+                        onChange={(e) =>
+                          handleArrayChange(
+                            "subjects",
+                            e.target.value,
+                            e.target.checked
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Batches Assigned
+                  </label>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3 grid grid-cols-2 max-h-40 overflow-y-auto">
+                    {batches.map((b) => (
+                      <CustomCheckbox
+                        key={b.id}
+                        id={`batch-${b.id}`}
+                        label={b.name}
+                        value={b.name}
+                        checked={formData.batches.includes(b.name)}
+                        onChange={(e) =>
+                          handleArrayChange(
+                            "batches",
+                            e.target.value,
+                            e.target.checked
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              </FormSection>
             </div>
-
-            {/* --- Sidebar Column (Right - 1/3 width) --- */}
+            {/* --- Sidebar Column (Right) --- */}
             <div className="lg:col-span-1 space-y-8">
               <FormSection title="Login Credentials" icon={UserCheck}>
                 <div className="sm:col-span-4">
                   <label className="flex items-center gap-2 text-sm font-medium text-slate mb-2">
-                    <UserIcon size={14} /> Username
+                    <UserIcon size={14} /> Login Email
                   </label>
                   <input
-                    name="username"
-                    value={formData.username}
+                    type="email"
+                    name="email"
+                    value={formData.email}
                     onChange={handleChange}
                     required
                     className={formInputClasses}
-                    placeholder="e.g., anil.kumar05"
+                    placeholder="teacher@example.com"
                   />
                 </div>
                 <div className="sm:col-span-4">
@@ -426,109 +429,100 @@ export default function AddNewStudentPage() {
                   />
                 </div>
               </FormSection>
-
-              <FormSection title="Academic Details" icon={BookMarked}>
-                <div className="sm:col-span-4 relative">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Batch
-                  </label>
-                  <select
-                    name="batch"
-                    value={formData.batch}
-                    onChange={handleChange}
-                    required
-                    className={`${formInputClasses} appearance-none pr-8`}>
-                    <option value="" disabled>
-                      Select Batch
-                    </option>
-                    {batches.map((b) => (
-                      <option key={b.id} value={b.name}>
-                        {b.name} ({b.classLevel})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
-                </div>
+              <FormSection title="Financial Details" icon={Landmark}>
                 <div className="sm:col-span-4">
                   <label className="block text-sm font-medium text-slate mb-2">
-                    Subjects Opted
-                  </label>
-                  <div className="rounded-lg border border-slate-700 bg-slate-900/50 p-3 space-y-2 max-h-48 overflow-y-auto">
-                    {loadingSubjects
-                      ? Array.from({ length: 4 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="h-6 bg-slate-700/50 rounded animate-pulse"
-                          />
-                        ))
-                      : subjects.map((sub) => (
-                          <CustomCheckbox
-                            key={sub.id}
-                            id={sub.id}
-                            label={sub.name}
-                            value={sub.name}
-                            checked={formData.subjects.includes(sub.name)}
-                            onChange={(e) =>
-                              handleSubjectChange(
-                                e.target.value,
-                                e.target.checked
-                              )
-                            }
-                          />
-                        ))}
-                  </div>
-                </div>
-                <div className="sm:col-span-4">
-                  <label className="block text-sm font-medium text-slate mb-2">
-                    Present School Name
+                    Bank Name
                   </label>
                   <input
-                    name="presentSchool"
-                    value={formData.presentSchool}
+                    name="bankName"
+                    value={formData.bankName}
                     onChange={handleChange}
                     className={formInputClasses}
                   />
                 </div>
                 <div className="sm:col-span-4">
                   <label className="block text-sm font-medium text-slate mb-2">
-                    Special Request
+                    Account Holder's Name
                   </label>
-                  <textarea
-                    name="specialRequest"
-                    value={formData.specialRequest}
+                  <input
+                    name="accountHolderName"
+                    value={formData.accountHolderName}
                     onChange={handleChange}
-                    rows="3"
+                    className={formInputClasses}
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Account Number
+                  </label>
+                  <input
+                    name="accountNumber"
+                    value={formData.accountNumber}
+                    onChange={handleChange}
+                    className={formInputClasses}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    IFSC Code
+                  </label>
+                  <input
+                    name="ifscCode"
+                    value={formData.ifscCode}
+                    onChange={handleChange}
+                    className={formInputClasses}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    UPI Number
+                  </label>
+                  <input
+                    name="upiNumber"
+                    value={formData.upiNumber}
+                    onChange={handleChange}
+                    className={formInputClasses}
+                  />
+                </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Branch Address
+                  </label>
+                  <input
+                    name="bankBranchAddress"
+                    value={formData.bankBranchAddress}
+                    onChange={handleChange}
                     className={formInputClasses}
                   />
                 </div>
               </FormSection>
             </div>
-
-            {/* --- Error and Buttons (Full Width Below Columns) --- */}
-            <div className="lg:col-span-3">
-              {error && (
-                <div className="bg-red-900/50 border border-red-500/30 text-red-300 text-sm p-3 rounded-lg text-center mb-6">
-                  {error}
-                </div>
-              )}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
-                <Link
-                  href="/portal/admin-dashboard/students"
-                  className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20 transition-colors">
-                  Cancel
-                </Link>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 flex items-center gap-2 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors">
-                  {isSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UserPlus size={16} />
-                  )}
-                  <span>{isSaving ? "Enrolling..." : "Enroll Student"}</span>
-                </button>
+          </div>
+          {/* --- Buttons --- */}
+          <div className="lg:col-span-3">
+            {error && (
+              <div className="bg-red-900/50 border border-red-500/30 text-red-300 text-sm p-3 rounded-lg text-center mb-6">
+                {error}
               </div>
+            )}
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
+              <Link
+                href="/portal/admin-dashboard/teachers"
+                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20 transition-colors">
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 flex items-center gap-2 disabled:bg-slate-600 disabled:cursor-not-allowed">
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus size={16} />
+                )}
+                <span>{isSaving ? "Adding..." : "Add Teacher"}</span>
+              </button>
             </div>
           </div>
         </form>

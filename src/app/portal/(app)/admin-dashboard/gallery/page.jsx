@@ -23,11 +23,31 @@ import {
   ExternalLink,
   Loader2,
   AlertTriangle,
+  Calendar,
+  Check,
 } from "lucide-react";
-import Link from "next/link";
 import { format } from "date-fns";
 
-// --- Modal for Adding/Editing Albums ---
+// --- HELPER & UI COMPONENTS ---
+
+const StatusBadge = ({ status }) => {
+  const styles = useMemo(
+    () => ({
+      Published: "bg-green-500/10 text-green-400 border-green-500/20",
+      Draft: "bg-slate-600/10 text-slate-400 border-slate-500/20",
+    }),
+    []
+  );
+  return (
+    <span
+      className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+        styles[status] || styles["Draft"]
+      }`}>
+      {status}
+    </span>
+  );
+};
+
 const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
   const [formData, setFormData] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -40,7 +60,6 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
       gdriveLink: "",
       status: "Published",
     };
-
     let dataToSet = album ? { ...album } : initialData;
     if (dataToSet.eventDate instanceof Timestamp) {
       dataToSet.eventDate = dataToSet.eventDate
@@ -48,14 +67,12 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
         .toISOString()
         .split("T")[0];
     }
-
     setFormData(dataToSet);
     if (isOpen) setTimeout(() => titleInputRef.current?.focus(), 100);
   }, [album, isOpen]);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -65,6 +82,8 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
   };
 
   if (!isOpen) return null;
+  const formInputClasses =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold";
 
   return (
     <AnimatePresence>
@@ -79,7 +98,7 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 20, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/80 p-6 shadow-2xl">
+          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/90 p-6 shadow-2xl backdrop-blur-xl">
           <h2 className="text-xl font-bold text-brand-gold mb-6">
             {album ? "Edit Album" : "Add New Album"}
           </h2>
@@ -97,23 +116,7 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                 ref={titleInputRef}
                 value={formData.title || ""}
                 onChange={handleChange}
-                className="w-full form-input"
-                required
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="eventDate"
-                className="block text-sm font-medium text-slate mb-2">
-                Event Date
-              </label>
-              <input
-                type="date"
-                id="eventDate"
-                name="eventDate"
-                value={formData.eventDate || ""}
-                onChange={handleChange}
-                className="w-full form-input"
+                className={formInputClasses}
                 required
               />
             </div>
@@ -129,27 +132,45 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                 name="gdriveLink"
                 value={formData.gdriveLink || ""}
                 onChange={handleChange}
-                className="w-full form-input"
+                className={formInputClasses}
                 placeholder="https://..."
                 required
               />
             </div>
-            <div>
-              <label
-                htmlFor="status"
-                className="block text-sm font-medium text-slate mb-2">
-                Status
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status || "Published"}
-                onChange={handleChange}
-                className="w-full form-input"
-                required>
-                <option value="Published">Published</option>
-                <option value="Draft">Draft</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="eventDate"
+                  className="block text-sm font-medium text-slate mb-2">
+                  Event Date
+                </label>
+                <input
+                  type="date"
+                  id="eventDate"
+                  name="eventDate"
+                  value={formData.eventDate || ""}
+                  onChange={handleChange}
+                  className={`${formInputClasses} pr-2`}
+                  required
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="status"
+                  className="block text-sm font-medium text-slate mb-2">
+                  Status
+                </label>
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status || "Published"}
+                  onChange={handleChange}
+                  className={formInputClasses}
+                  required>
+                  <option value="Published">Published</option>
+                  <option value="Draft">Draft</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button
@@ -162,7 +183,7 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                 type="submit"
                 disabled={isSaving}
                 className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{" "}
                 {album ? "Save Changes" : "Create Album"}
               </button>
             </div>
@@ -179,7 +200,6 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
 };
 
 const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, albumTitle }) => {
-  // This component remains the same, just connect the onConfirm prop
   if (!isOpen) return null;
   return (
     <AnimatePresence>
@@ -221,31 +241,70 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, albumTitle }) => {
   );
 };
 
-const StatusBadge = ({ status }) => (
-  <span
-    className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-      status === "Published"
-        ? "bg-green-500/20 text-green-300"
-        : "bg-slate-600/20 text-slate-400"
-    }`}>
-    {status}
-  </span>
+const EmptyState = ({
+  onAction,
+  title,
+  message,
+  buttonText,
+  icon: Icon = ImageIcon,
+}) => (
+  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10 col-span-full">
+    <Icon className="mx-auto h-12 w-12 text-slate-500" />
+    <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
+    <p className="mt-2 text-sm text-slate">{message}</p>
+    {onAction && buttonText && (
+      <button
+        onClick={onAction}
+        className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
+        <PlusCircle size={18} />
+        <span>{buttonText}</span>
+      </button>
+    )}
+  </div>
 );
 
-const EmptyState = ({ onAction }) => (
-  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10">
-    <ImageIcon className="mx-auto h-12 w-12 text-slate-500" />
-    <h3 className="mt-4 text-xl font-semibold text-white">No Albums Found</h3>
-    <p className="mt-2 text-sm text-slate">
-      Get started by adding the first photo album link.
-    </p>
-    <button
-      onClick={onAction}
-      className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
-      <PlusCircle size={18} />
-      <span>Add New Album</span>
-    </button>
-  </div>
+const AlbumCard = ({ album, onEdit, onDelete }) => (
+  <motion.div
+    className="rounded-2xl border border-white/10 bg-slate-900/30 p-5 flex flex-col justify-between backdrop-blur-sm transition-all hover:border-white/20 hover:bg-slate-900/50"
+    layout
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}>
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <h3 className="font-bold text-lg text-light-slate">{album.title}</h3>
+        <StatusBadge status={album.status} />
+      </div>
+      <div className="mt-3 text-sm text-slate-400 flex items-center gap-2">
+        <Calendar size={14} />
+        <span>
+          {album.eventDate
+            ? format(album.eventDate.toDate(), "MMM dd, yyyy")
+            : "N/A"}
+        </span>
+      </div>
+    </div>
+    <div className="mt-5 pt-4 border-t border-slate-700/50 flex justify-between items-center gap-2">
+      <a
+        href={album.gdriveLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20 transition-colors">
+        <ExternalLink size={16} /> View Album
+      </a>
+      <div className="flex gap-1">
+        <button
+          onClick={() => onEdit(album)}
+          className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+          <Edit size={16} />
+        </button>
+        <button
+          onClick={() => onDelete(album)}
+          className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </div>
+  </motion.div>
 );
 
 export default function ManageGalleryPage() {
@@ -277,16 +336,14 @@ export default function ManageGalleryPage() {
       const dataToSave = {
         ...formData,
         eventDate: Timestamp.fromDate(new Date(formData.eventDate)),
+        updatedAt: Timestamp.now(),
       };
-
       if (editingAlbum) {
-        const { id, ...dataToUpdate } = dataToSave;
-        await updateDoc(doc(db, "galleryAlbums", id), dataToUpdate);
+        await updateDoc(doc(db, "galleryAlbums", editingAlbum.id), dataToSave);
       } else {
         await addDoc(collection(db, "galleryAlbums"), {
           ...dataToSave,
           createdAt: Timestamp.now(),
-          createdBy: "Admin",
         });
       }
     } catch (error) {
@@ -298,36 +355,73 @@ export default function ManageGalleryPage() {
     setDeletingAlbum(album);
     setIsDeleteModalOpen(true);
   };
-
   const confirmDelete = async () => {
     if (deletingAlbum) {
-      try {
-        await deleteDoc(doc(db, "galleryAlbums", deletingAlbum.id));
-        setIsDeleteModalOpen(false);
-        setDeletingAlbum(null);
-      } catch (error) {
-        console.error("Error deleting album:", error);
-      }
+      await deleteDoc(doc(db, "galleryAlbums", deletingAlbum.id));
+      setIsDeleteModalOpen(false);
+      setDeletingAlbum(null);
     }
   };
-
   const handleCreate = () => {
     setEditingAlbum(null);
     setIsModalOpen(true);
   };
-
   const handleEdit = (album) => {
     setEditingAlbum(album);
     setIsModalOpen(true);
   };
 
+  const renderContent = () => {
+    if (loading)
+      return (
+        <div className="flex justify-center items-center py-20 col-span-full">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+        </div>
+      );
+    if (albums.length === 0)
+      return (
+        <EmptyState
+          onAction={handleCreate}
+          title="No Albums Found"
+          message="Get started by adding the first photo album link."
+          buttonText="Add New Album"
+        />
+      );
+    return (
+      <AnimatePresence>
+        {albums.map((album) => (
+          <AlbumCard
+            key={album.id}
+            album={album}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ))}
+      </AnimatePresence>
+    );
+  };
+
   return (
-    <>
-      <style jsx global>{`
-        .form-input {
-          @apply w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200;
-        }
-      `}</style>
+    <main>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
+            Manage Gallery
+          </h1>
+          <p className="text-base text-slate">
+            Add and manage all event photo album links.
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
+          <PlusCircle size={18} />
+          <span>Add New Album</span>
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {renderContent()}
+      </div>
       <AlbumModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -340,94 +434,6 @@ export default function ManageGalleryPage() {
         onConfirm={confirmDelete}
         albumTitle={deletingAlbum?.title}
       />
-
-      <div>
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
-              Manage Gallery
-            </h1>
-            <p className="text-base text-slate">
-              Add and manage all event photo album links.
-            </p>
-          </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy transition-colors hover:bg-yellow-400 shrink-0">
-            <PlusCircle size={18} />
-            <span>Add New Album</span>
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-          </div>
-        ) : albums.length > 0 ? (
-          <motion.div
-            className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}>
-            <div className="overflow-x-auto">
-              <div className="min-w-full">
-                <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase tracking-wider">
-                  <div className="col-span-4">Album Title</div>
-                  <div className="col-span-2">Event Date</div>
-                  <div className="col-span-2">Created By</div>
-                  <div className="col-span-1">Status</div>
-                  <div className="col-span-3 text-right">Actions</div>
-                </div>
-                <div className="divide-y divide-slate-700/50">
-                  {albums.map((album) => (
-                    <div
-                      key={album.id}
-                      className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
-                      <div className="col-span-4 font-medium text-light-slate">
-                        {album.title}
-                      </div>
-                      <div className="col-span-2 text-slate">
-                        {album.eventDate
-                          ? format(album.eventDate.toDate(), "MMM dd, yyyy")
-                          : "N/A"}
-                      </div>
-                      <div className="col-span-2 text-slate">
-                        {album.createdBy}
-                      </div>
-                      <div className="col-span-1">
-                        <StatusBadge status={album.status} />
-                      </div>
-                      <div className="col-span-3 flex justify-end gap-2">
-                        <a
-                          href={album.gdriveLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 text-slate-400 hover:text-white rounded-md hover:bg-white/5"
-                          title="View Album">
-                          <ExternalLink size={16} />
-                        </a>
-                        <button
-                          onClick={() => handleEdit(album)}
-                          className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-white/5"
-                          title="Edit Album">
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(album)}
-                          className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-white/5"
-                          title="Delete Album">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <EmptyState onAction={handleCreate} />
-        )}
-      </div>
-    </>
+    </main>
   );
 }

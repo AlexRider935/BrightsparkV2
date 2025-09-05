@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, LogIn } from "lucide-react";
+import { Lock, LogIn, User } from "lucide-react"; // Replaced Mail with User
 import Link from "next/link";
-// --- THE FIX IS HERE ---
-// Changed from: import { AuthContext } from "@/context/AuthContext";
-// To:
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
+import { getDocs, query, collection, where } from "firebase/firestore";
+import { db } from "@/firebase/config";
 
 // A reusable component for the new floating-label inputs
 const FloatingLabelInput = ({
@@ -52,13 +51,10 @@ const FloatingLabelInput = ({
 };
 
 const StudentLoginPage = () => {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState(""); // Changed from email
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  // --- AND THE FIX IS HERE ---
-  // Changed from: const { login } = useContext(AuthContext);
-  // To:
   const { login } = useAuth();
   const router = useRouter();
 
@@ -67,11 +63,33 @@ const StudentLoginPage = () => {
     setIsLoading(true);
     setError("");
     try {
-      // We'll add the "student" role check later if needed
-      await login(email, password);
+      // Step 1: Find the user document in Firestore that matches the username
+      const usersRef = collection(db, "users");
+      const q = query(
+        usersRef,
+        where("username", "==", username.toLowerCase().trim())
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        throw new Error("User not found");
+      }
+
+      // Step 2: Get the internal email from the found document
+      const userData = querySnapshot.docs[0].data();
+      const internalEmail = userData.email;
+
+      if (!internalEmail) {
+        throw new Error("Login configuration error for this user.");
+      }
+
+      // Step 3: Use the internal email to log in via the AuthContext
+      await login(internalEmail, password, "student"); // Pass role for verification
+
       router.push("/portal/student-dashboard");
     } catch (err) {
-      setError("Invalid credentials. Please check your email and password.");
+      console.error(err);
+      setError("Invalid credentials. Please check your username and password.");
     } finally {
       setIsLoading(false);
     }
@@ -142,12 +160,12 @@ const StudentLoginPage = () => {
             </div>
             <form onSubmit={handleLogin} className="space-y-6">
               <FloatingLabelInput
-                id="email"
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                icon={Mail}
+                id="username"
+                label="Username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                icon={User}
               />
               <FloatingLabelInput
                 id="password"
@@ -157,7 +175,6 @@ const StudentLoginPage = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 icon={Lock}
               />
-
               <AnimatePresence>
                 {error && (
                   <motion.p
@@ -169,7 +186,6 @@ const StudentLoginPage = () => {
                   </motion.p>
                 )}
               </AnimatePresence>
-
               <div className="flex items-center justify-between">
                 <Link
                   href="#"
@@ -177,7 +193,6 @@ const StudentLoginPage = () => {
                   Forgot Password?
                 </Link>
               </div>
-
               <motion.button
                 type="submit"
                 disabled={isLoading}

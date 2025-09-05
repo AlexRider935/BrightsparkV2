@@ -24,28 +24,28 @@ import {
   AlertTriangle,
   Filter,
   ChevronDown,
+  Clock,
+  Calendar,
+  Users,
 } from "lucide-react";
 import { format, isPast, formatDistanceToNow } from "date-fns";
 
 // --- HELPER & UI COMPONENTS ---
 
 const StatusBadge = ({ expiryDate }) => {
-  if (!expiryDate)
-    return (
-      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-600/20 text-slate-400">
-        Expired
-      </span>
-    );
-
   const isExpired = isPast(expiryDate);
+  const styles = useMemo(
+    () => ({
+      Active: "bg-green-500/10 text-green-400 border-green-500/20",
+      Expired: "bg-slate-600/10 text-slate-400 border-slate-500/20",
+    }),
+    []
+  );
+  const status = isExpired ? "Expired" : "Active";
   return (
     <span
-      className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-        isExpired
-          ? "bg-slate-600/20 text-slate-400"
-          : "bg-green-500/20 text-green-300"
-      }`}>
-      {isExpired ? "Expired" : "Active"}
+      className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${styles[status]}`}>
+      {status}
     </span>
   );
 };
@@ -80,18 +80,14 @@ const AnnouncementModal = ({
       target: "All Users",
       expiryDate: defaultExpiry.toISOString().split("T")[0],
     };
-
     let dataToSet = announcement ? { ...announcement } : initialData;
-    // Ensure date is a string for the input field
     if (dataToSet.expiryDate instanceof Timestamp) {
       dataToSet.expiryDate = dataToSet.expiryDate
         .toDate()
         .toISOString()
         .split("T")[0];
     }
-
     setFormData(dataToSet);
-
     if (isOpen) setTimeout(() => titleInputRef.current?.focus(), 100);
   }, [announcement, isOpen]);
 
@@ -103,9 +99,12 @@ const AnnouncementModal = ({
     setIsSaving(true);
     await onSave(formData);
     setIsSaving(false);
+    onClose();
   };
 
   if (!isOpen) return null;
+  const formInputClasses =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
 
   return (
     <AnimatePresence>
@@ -117,7 +116,7 @@ const AnnouncementModal = ({
         exit={{ opacity: 0 }}>
         <motion.div
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-dark-navy/80 p-6 sm:p-8 shadow-2xl"
+          className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-dark-navy/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 20, opacity: 0 }}>
@@ -125,44 +124,41 @@ const AnnouncementModal = ({
             {announcement ? "Edit Announcement" : "Create New Announcement"}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <fieldset className="space-y-4">
-              <div>
-                <label
-                  htmlFor="title"
-                  className="block text-sm font-medium text-slate mb-2">
-                  Title
-                </label>
-                <input
-                  ref={titleInputRef}
-                  id="title"
-                  name="title"
-                  value={formData.title || ""}
-                  onChange={handleChange}
-                  required
-                  className="w-full form-input"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="content"
-                  className="block text-sm font-medium text-slate mb-2">
-                  Content
-                </label>
-                <textarea
-                  id="content"
-                  name="content"
-                  value={formData.content || ""}
-                  onChange={handleChange}
-                  rows="5"
-                  required
-                  placeholder="Enter the full text of the announcement here..."
-                  className="w-full form-input"
-                />
-              </div>
-            </fieldset>
-
-            <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-700/50 pt-6">
-              <div>
+            <div>
+              <label
+                htmlFor="title"
+                className="block text-sm font-medium text-slate mb-2">
+                Title
+              </label>
+              <input
+                ref={titleInputRef}
+                id="title"
+                name="title"
+                value={formData.title || ""}
+                onChange={handleChange}
+                required
+                className={formInputClasses}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="content"
+                className="block text-sm font-medium text-slate mb-2">
+                Content
+              </label>
+              <textarea
+                id="content"
+                name="content"
+                value={formData.content || ""}
+                onChange={handleChange}
+                rows="5"
+                required
+                placeholder="Enter the full text of the announcement here..."
+                className={formInputClasses}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-700/50 pt-6">
+              <div className="relative">
                 <label
                   htmlFor="target"
                   className="block text-sm font-medium text-slate mb-2">
@@ -173,13 +169,14 @@ const AnnouncementModal = ({
                   name="target"
                   value={formData.target || "All Users"}
                   onChange={handleChange}
-                  className="w-full form-input">
+                  className={`${formInputClasses} appearance-none pr-8`}>
                   {audienceOptions.map((aud) => (
                     <option key={aud} value={aud}>
                       {aud}
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
               </div>
               <div>
                 <label
@@ -194,23 +191,22 @@ const AnnouncementModal = ({
                   value={formData.expiryDate || ""}
                   onChange={handleChange}
                   required
-                  className="w-full form-input"
+                  className={`${formInputClasses} pr-2`}
                 />
               </div>
-            </fieldset>
-
+            </div>
             <div className="flex justify-end gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20 transition-colors">
+                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 transition-colors">
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{" "}
                 {announcement ? "Save Changes" : "Publish Announcement"}
               </button>
             </div>
@@ -270,7 +266,6 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, title }) => {
     </AnimatePresence>
   );
 };
-
 const EmptyState = ({
   onAction,
   title,
@@ -293,7 +288,67 @@ const EmptyState = ({
   </div>
 );
 
-// --- MAIN PAGE COMPONENT ---
+const AnnouncementCard = ({ item, onEdit, onDelete }) => (
+  <motion.div
+    className="rounded-2xl border border-white/10 bg-slate-900/30 p-6 backdrop-blur-sm transition-all hover:border-white/20"
+    layout
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}>
+    <div className="flex items-start justify-between gap-4">
+      <h3 className="font-bold text-lg text-light-slate">{item.title}</h3>
+      <div className="flex gap-2 shrink-0">
+        <StatusBadge expiryDate={item.expiryDate?.toDate()} />
+        <button
+          onClick={() => onEdit(item)}
+          className="p-1.5 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+          <Edit size={16} />
+        </button>
+        <button
+          onClick={() => onDelete(item)}
+          className="p-1.5 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </div>
+    <p className="mt-3 text-sm text-slate-300 leading-relaxed max-w-prose">
+      {item.content}
+    </p>
+    <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
+      <div className="flex items-center gap-2">
+        <Users size={14} />
+        <span>
+          For: <strong className="text-slate-300">{item.target}</strong>
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Clock size={14} />
+        <span>
+          Published:{" "}
+          <strong className="text-slate-300">
+            {item.createdAt
+              ? formatDistanceToNow(item.createdAt.toDate(), {
+                  addSuffix: true,
+                })
+              : "N/A"}
+          </strong>
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Calendar size={14} />
+        <span>
+          Expires:{" "}
+          <strong className="text-slate-300">
+            {item.expiryDate
+              ? format(item.expiryDate.toDate(), "MMM dd, yyyy")
+              : "N/A"}
+          </strong>
+        </span>
+      </div>
+    </div>
+  </motion.div>
+);
+
 export default function ManageAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([]);
   const [batches, setBatches] = useState([]);
@@ -311,18 +366,18 @@ export default function ManageAnnouncementsPage() {
       orderBy("createdAt", "desc")
     );
     const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
-      const announcementData = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((doc) => doc.id !== "--placeholder--");
-
-      setAnnouncements(announcementData);
+      setAnnouncements(
+        snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((doc) => doc.id !== "--placeholder--")
+      );
       setLoading(false);
     });
 
     const qBatches = query(collection(db, "batches"), orderBy("name"));
-    const unsubBatches = onSnapshot(qBatches, (snapshot) => {
-      setBatches(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
+    const unsubBatches = onSnapshot(qBatches, (snapshot) =>
+      setBatches(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
 
     return () => {
       unsubAnnouncements();
@@ -347,23 +402,19 @@ export default function ManageAnnouncementsPage() {
       const dataToSave = {
         ...data,
         expiryDate: Timestamp.fromDate(new Date(data.expiryDate)),
+        updatedAt: Timestamp.now(),
       };
-
       if (editingAnnouncement) {
-        // This is an EDIT
         await updateDoc(
           doc(db, "announcements", editingAnnouncement.id),
           dataToSave
         );
       } else {
-        // This is a CREATE
         await addDoc(collection(db, "announcements"), {
           ...dataToSave,
           createdAt: Timestamp.now(),
         });
       }
-      setIsModalOpen(false);
-      setEditingAnnouncement(null);
     } catch (error) {
       console.error("Error saving announcement:", error);
     }
@@ -373,25 +424,17 @@ export default function ManageAnnouncementsPage() {
     setDeletingAnnouncement(announcement);
     setIsDeleteModalOpen(true);
   };
-
   const confirmDelete = async () => {
     if (deletingAnnouncement) {
-      try {
-        await deleteDoc(doc(db, "announcements", deletingAnnouncement.id));
-        setIsDeleteModalOpen(false);
-        setDeletingAnnouncement(null);
-      } catch (error) {
-        console.error("Error deleting announcement:", error);
-      }
+      await deleteDoc(doc(db, "announcements", deletingAnnouncement.id));
+      setIsDeleteModalOpen(false);
+      setDeletingAnnouncement(null);
     }
   };
-
-  // Re-instated handleCreate to open the modal for a NEW announcement
   const handleCreate = () => {
     setEditingAnnouncement(null);
     setIsModalOpen(true);
   };
-
   const handleEdit = (announcement) => {
     setEditingAnnouncement(announcement);
     setIsModalOpen(true);
@@ -423,75 +466,58 @@ export default function ManageAnnouncementsPage() {
         />
       );
     return (
-      <motion.div
-        className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}>
-        <div className="overflow-x-auto">
-          <div className="min-w-full">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase">
-              <div className="col-span-4">Title</div>
-              <div className="col-span-2">Audience</div>
-              <div className="col-span-2">Published</div>
-              <div className="col-span-2">Expires</div>
-              <div className="col-span-1">Status</div>
-              <div className="col-span-1 text-right">Actions</div>
-            </div>
-            <div className="divide-y divide-slate-700/50">
-              {filteredAnnouncements.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
-                  <div className="col-span-4 font-medium text-light-slate">
-                    {item.title}
-                  </div>
-                  <div className="col-span-2 text-slate">{item.target}</div>
-                  <div className="col-span-2 text-slate">
-                    {item.createdAt
-                      ? formatDistanceToNow(item.createdAt.toDate(), {
-                          addSuffix: true,
-                        })
-                      : "N/A"}
-                  </div>
-                  <div className="col-span-2 text-slate">
-                    {item.expiryDate
-                      ? format(item.expiryDate.toDate(), "MMM dd, yyyy")
-                      : "N/A"}
-                  </div>
-                  <div className="col-span-1">
-                    <StatusBadge expiryDate={item.expiryDate?.toDate()} />
-                  </div>
-                  <div className="col-span-1 flex justify-end gap-1">
-                    <button
-                      onClick={() => handleEdit(item)}
-                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-white/10">
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item)}
-                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-white/10">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <AnimatePresence>
+        {filteredAnnouncements.map((item) => (
+          <AnnouncementCard
+            key={item.id}
+            item={item}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ))}
+      </AnimatePresence>
     );
   };
 
   return (
-    <>
-      <style jsx global>{`
-        .form-input {
-          @apply w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200;
-        }
-        .form-input[type="date"] {
-          @apply pr-2;
-        }
-      `}</style>
+    <main>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
+            Manage Announcements
+          </h1>
+          <p className="text-base text-slate">
+            Create and publish institute-wide notices.
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
+          <PlusCircle size={18} />
+          <span>New Announcement</span>
+        </button>
+      </div>
+      <AnimatePresence>
+        {announcements.length > 0 && (
+          <motion.div
+            className="flex items-center gap-4 mb-8"
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}>
+            <div className="relative w-full sm:w-64">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <div className="space-y-6">{renderContent()}</div>
       <AnnouncementModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -505,45 +531,6 @@ export default function ManageAnnouncementsPage() {
         onConfirm={confirmDelete}
         title={deletingAnnouncement?.title}
       />
-      <main>
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
-              Manage Announcements
-            </h1>
-            <p className="text-base text-slate">
-              Create and publish institute-wide notices.
-            </p>
-          </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
-            <PlusCircle size={18} />
-            <span>New Announcement</span>
-          </button>
-        </div>
-        <AnimatePresence>
-          {announcements.length > 0 && (
-            <motion.div
-              className="flex items-center gap-4 mb-6"
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}>
-              <div className="relative w-full sm:w-64">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full form-input">
-                  <option value="all">All Statuses</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {renderContent()}
-      </main>
-    </>
+    </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { db } from "@/firebase/config";
 import {
   collection,
@@ -19,204 +20,33 @@ import {
   PlusCircle,
   Check,
   Phone,
-  Eye,
   Loader2,
   X,
   AlertTriangle,
   Edit,
   Trash2,
+  ChevronDown,
+  Filter,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
-
-export default function AdmissionsPage() {
-  const [inquiries, setInquiries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState("All");
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingInquiry, setEditingInquiry] = useState(null);
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deletingInquiry, setDeletingInquiry] = useState(null);
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "admissions"),
-      orderBy("inquiryDate", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const inquiriesData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        // Convert Firestore Timestamp to JS Date object
-        inquiryDate: doc.data().inquiryDate.toDate(),
-      }));
-      setInquiries(inquiriesData);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const filteredInquiries = useMemo(() => {
-    if (activeFilter === "All") return inquiries;
-    return inquiries.filter((i) => i.status === activeFilter);
-  }, [inquiries, activeFilter]);
-
-  const handleSave = async (inquiryData) => {
-    // Convert JS Date string back to Firestore Timestamp before saving
-    const dataToSave = {
-      ...inquiryData,
-      inquiryDate: Timestamp.fromDate(new Date(inquiryData.inquiryDate)),
-    };
-    try {
-      if (editingInquiry) {
-        await updateDoc(doc(db, "admissions", editingInquiry.id), dataToSave);
-      } else {
-        await addDoc(collection(db, "admissions"), {
-          ...dataToSave,
-          createdAt: Timestamp.now(),
-        });
-      }
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error("Error saving inquiry:", error);
-    }
-  };
-
-  const handleDelete = (inquiry) => {
-    setDeletingInquiry(inquiry);
-    setIsDeleteModalOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (deletingInquiry) {
-      try {
-        await deleteDoc(doc(db, "admissions", deletingInquiry.id));
-        setIsDeleteModalOpen(false);
-        setDeletingInquiry(null);
-      } catch (error) {
-        console.error("Error deleting inquiry:", error);
-      }
-    }
-  };
-
-  const handleCreate = () => {
-    setEditingInquiry(null);
-    setIsModalOpen(true);
-  };
-  const handleEdit = (inquiry) => {
-    setEditingInquiry(inquiry);
-    setIsModalOpen(true);
-  };
-
-  const filters = ["All", "New Inquiry", "Contacted", "Enrolled", "Rejected"];
-
-  return (
-    <>
-      <InquiryModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSave}
-        inquiry={editingInquiry}
-      />
-      <ConfirmDeleteModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={confirmDelete}
-        studentName={deletingInquiry?.studentName}
-      />
-      <div>
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-2">
-              Admissions Pipeline
-            </h1>
-            <p className="text-lg text-slate">
-              Manage new student inquiries and enrollments.
-            </p>
-          </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy transition-colors hover:bg-yellow-400 shrink-0">
-            <PlusCircle size={18} />
-            <span>Add New Inquiry</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 mb-6 border-b border-slate-700/50">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                activeFilter === filter
-                  ? "border-b-2 border-brand-gold text-brand-gold"
-                  : "text-slate hover:text-white"
-              }`}>
-              {filter}
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-          </div>
-        ) : filteredInquiries.length > 0 ? (
-          <motion.div className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase">
-              <div className="col-span-3">Student Name</div>
-              <div className="col-span-2">Class Applied</div>
-              <div className="col-span-3">Parent Contact</div>
-              <div className="col-span-2">Inquiry Date</div>
-              <div className="col-span-2 text-center">Status</div>
-            </div>
-            <div className="divide-y divide-slate-700/50">
-              {filteredInquiries.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm group cursor-pointer hover:bg-slate-800/50"
-                  onClick={() => handleEdit(item)}>
-                  <div className="col-span-3 font-medium text-light-slate">
-                    {item.studentName}
-                  </div>
-                  <div className="col-span-2 text-slate">
-                    {item.classApplied}
-                  </div>
-                  <div className="col-span-3">
-                    <p className="text-slate">{item.parentName}</p>
-                    <p className="text-xs text-slate/70">{item.contact}</p>
-                  </div>
-                  <div className="col-span-2 text-slate">
-                    {item.inquiryDate.toLocaleDateString("en-CA")}
-                  </div>
-                  <div className="col-span-2 text-center">
-                    <StatusBadge status={item.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ) : (
-          <EmptyState onAction={handleCreate} />
-        )}
-      </div>
-    </>
-  );
-}
-
-// --- HELPER COMPONENTS (Full code for copy-paste) ---
+// --- HELPER & UI COMPONENTS ---
 
 const StatusBadge = ({ status }) => {
-  const styles = {
-    "New Inquiry": "bg-sky-500/20 text-sky-400",
-    Contacted: "bg-amber-500/20 text-amber-400",
-    Enrolled: "bg-green-500/20 text-green-300",
-    Rejected: "bg-red-900/40 text-red-400",
-  };
+  const styles = useMemo(
+    () => ({
+      "New Inquiry": "bg-sky-500/10 text-sky-400 border-sky-500/20",
+      Contacted: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+      Enrolled: "bg-green-500/10 text-green-400 border-green-500/20",
+      Rejected: "bg-red-900/10 text-red-400 border-red-500/20",
+    }),
+    []
+  );
   return (
     <span
-      className={`px-2.5 py-1 text-xs font-semibold rounded-full ${styles[status]}`}>
+      className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+        styles[status] || "bg-slate-600/10 text-slate-400"
+      }`}>
       {status}
     </span>
   );
@@ -251,7 +81,10 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
     e.preventDefault();
     onSave(formData);
   };
+
   if (!isOpen) return null;
+  const formInputClasses =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
 
   return (
     <AnimatePresence>
@@ -263,7 +96,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
         exit={{ opacity: 0 }}>
         <motion.div
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy p-6"
+          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/90 p-6 backdrop-blur-xl"
           initial={{ scale: 0.95 }}
           animate={{ scale: 1 }}
           exit={{ scale: 0.95 }}>
@@ -277,7 +110,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 value={formData.studentName}
                 onChange={handleChange}
                 placeholder="Student Full Name"
-                className="w-full rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate"
+                className={formInputClasses}
                 required
               />
               <input
@@ -285,7 +118,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 value={formData.classApplied}
                 onChange={handleChange}
                 placeholder="Class Applied For"
-                className="w-full rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate"
+                className={formInputClasses}
                 required
               />
             </div>
@@ -295,7 +128,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 value={formData.parentName}
                 onChange={handleChange}
                 placeholder="Parent Name"
-                className="w-full rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate"
+                className={formInputClasses}
                 required
               />
               <input
@@ -303,7 +136,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 value={formData.contact}
                 onChange={handleChange}
                 placeholder="Parent Contact"
-                className="w-full rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate"
+                className={formInputClasses}
                 required
               />
             </div>
@@ -313,22 +146,25 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 type="date"
                 value={formData.inquiryDate}
                 onChange={handleChange}
-                className="w-full rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate"
+                className={`${formInputClasses} pr-2`}
                 required
               />
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="w-full appearance-none rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate">
-                {["New Inquiry", "Contacted", "Enrolled", "Rejected"].map(
-                  (s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  )
-                )}
-              </select>
+              <div className="relative">
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className={`${formInputClasses} appearance-none pr-8`}>
+                  {["New Inquiry", "Contacted", "Enrolled", "Rejected"].map(
+                    (s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    )
+                  )}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <button
@@ -346,7 +182,7 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
           </form>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-slate hover:text-white">
+            className="absolute top-4 right-4 text-slate-400 hover:text-white">
             <X size={24} />
           </button>
         </motion.div>
@@ -398,20 +234,244 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, studentName }) => {
   );
 };
 
-const EmptyState = ({ onAction }) => (
-  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50">
-    <UserPlus className="mx-auto h-12 w-12 text-slate-500" />
-    <h3 className="mt-4 text-xl font-semibold text-white">
-      No Inquiries Found
-    </h3>
-    <p className="mt-2 text-sm text-slate">
-      Get started by adding the first admission inquiry.
-    </p>
-    <button
-      onClick={onAction}
-      className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy transition-colors hover:bg-yellow-400">
-      <PlusCircle size={18} />
-      <span>Add New Inquiry</span>
-    </button>
+const EmptyState = ({
+  onAction,
+  title,
+  message,
+  buttonText,
+  icon: Icon = UserPlus,
+}) => (
+  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10 col-span-full">
+    <Icon className="mx-auto h-12 w-12 text-slate-500" />
+    <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
+    <p className="mt-2 text-sm text-slate">{message}</p>
+    {onAction && buttonText && (
+      <button
+        onClick={onAction}
+        className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
+        <PlusCircle size={18} />
+        <span>{buttonText}</span>
+      </button>
+    )}
   </div>
 );
+
+const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
+  <motion.div
+    className="rounded-2xl border border-white/10 bg-slate-900/30 p-5 flex flex-col justify-between backdrop-blur-sm transition-all hover:border-white/20"
+    layout
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}>
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-bold text-lg text-light-slate">
+            {item.studentName}
+          </h3>
+          <p className="text-sm text-slate-400">
+            Applying for: {item.classApplied}
+          </p>
+        </div>
+        <StatusBadge status={item.status} />
+      </div>
+      <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-2 text-sm text-slate-300">
+        <p>
+          <strong>Parent:</strong> {item.parentName}
+        </p>
+        <p>
+          <strong>Contact:</strong> {item.contact}
+        </p>
+        <p className="text-xs text-slate-500">
+          Inquiry received{" "}
+          {formatDistanceToNow(item.inquiryDate, { addSuffix: true })}
+        </p>
+      </div>
+    </div>
+    <div className="mt-5 flex justify-between items-center gap-2">
+      <div>
+        {item.status !== "Enrolled" && item.status !== "Rejected" && (
+          <button
+            onClick={() => onEnroll(item)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 transition-colors">
+            <Check size={16} /> Enroll Student
+          </button>
+        )}
+      </div>
+      <div className="flex gap-1">
+        <button
+          onClick={() => onEdit(item)}
+          className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+          <Edit size={16} />
+        </button>
+        <button
+          onClick={() => onDelete(item)}
+          className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </div>
+  </motion.div>
+);
+
+export default function AdmissionsPage() {
+  const [inquiries, setInquiries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingInquiry, setEditingInquiry] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingInquiry, setDeletingInquiry] = useState(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "admissions"),
+      orderBy("inquiryDate", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const inquiriesData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        inquiryDate: doc.data().inquiryDate.toDate(),
+      }));
+      setInquiries(inquiriesData);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filteredInquiries = useMemo(() => {
+    if (activeFilter === "All") return inquiries;
+    return inquiries.filter((i) => i.status === activeFilter);
+  }, [inquiries, activeFilter]);
+
+  const handleSave = async (inquiryData) => {
+    const dataToSave = {
+      ...inquiryData,
+      inquiryDate: Timestamp.fromDate(new Date(inquiryData.inquiryDate)),
+      updatedAt: Timestamp.now(),
+    };
+    try {
+      if (editingInquiry) {
+        await updateDoc(doc(db, "admissions", editingInquiry.id), dataToSave);
+      } else {
+        await addDoc(collection(db, "admissions"), {
+          ...dataToSave,
+          createdAt: Timestamp.now(),
+        });
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error saving inquiry:", error);
+    }
+  };
+
+  const handleDelete = (inquiry) => {
+    setDeletingInquiry(inquiry);
+    setIsDeleteModalOpen(true);
+  };
+  const confirmDelete = async () => {
+    if (deletingInquiry) {
+      await deleteDoc(doc(db, "admissions", deletingInquiry.id));
+      setIsDeleteModalOpen(false);
+      setDeletingInquiry(null);
+    }
+  };
+  const handleCreate = () => {
+    setEditingInquiry(null);
+    setIsModalOpen(true);
+  };
+  const handleEdit = (inquiry) => {
+    setEditingInquiry(inquiry);
+    setIsModalOpen(true);
+  };
+
+  const handleEnroll = (inquiry) => {
+    const queryParams = new URLSearchParams({
+      firstName: inquiry.studentName.split(" ")[0] || "",
+      lastName: inquiry.studentName.split(" ").slice(1).join(" ") || "",
+      classApplied: inquiry.classApplied || "",
+      fatherName: inquiry.parentName || "",
+      fatherContact: inquiry.contact || "",
+    }).toString();
+    router.push(`/portal/admin-dashboard/students/new?${queryParams}`);
+  };
+
+  const filters = ["All", "New Inquiry", "Contacted", "Enrolled", "Rejected"];
+
+  return (
+    <main>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
+            Admissions Pipeline
+          </h1>
+          <p className="text-base text-slate">
+            Manage new student inquiries and enrollments.
+          </p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
+          <PlusCircle size={18} />
+          <span>Add New Inquiry</span>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 mb-8 bg-slate-900/30 border border-slate-700/50 p-1 rounded-lg">
+        {filters.map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={`w-full px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeFilter === filter
+                ? "bg-slate-700 text-white"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+            }`}>
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+        </div>
+      ) : filteredInquiries.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <AnimatePresence>
+            {filteredInquiries.map((item) => (
+              <InquiryCard
+                key={item.id}
+                item={item}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onEnroll={handleEnroll}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <EmptyState
+          onAction={handleCreate}
+          title="No Inquiries Found"
+          message="Get started by adding the first admission inquiry."
+          buttonText="Add New Inquiry"
+        />
+      )}
+
+      <InquiryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSave}
+        inquiry={editingInquiry}
+      />
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        studentName={deletingInquiry?.studentName}
+      />
+    </main>
+  );
+}

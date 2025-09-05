@@ -38,3 +38,33 @@
 /* In src/app/globals.css */
 
 /* In src/app/globals.css */
+.form-input {
+  @apply w-full rounded-xl border border-white/10 
+    bg-transparent p-3 text-light-slate 
+    focus:border-brand-gold focus:ring-1 focus:ring-brand-gold;
+}
+  .form-input[type="date"] {
+    @apply pr-2;
+  }
+  .form-prefix {
+    @apply inline-flex items-center px-3 rounded-l-lg 
+      border border-r-0 border-white/20 
+      bg-slate-900/40 text-slate;
+  }
+
+/* Remove default blue outline */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Autofill fix */
+input:-webkit-autofill,
+select:-webkit-autofill,
+textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.7) inset !important; /* bg-slate-900/70 */
+  -webkit-text-fill-color: #e2e8f0 !important; /* text-light-slate */
+  transition: background-color 9999s ease-in-out 0s;
+}
