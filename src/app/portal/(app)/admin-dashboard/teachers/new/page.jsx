@@ -22,7 +22,7 @@ import {
   BookMarked,
   Home,
   Landmark,
-  UserCheck
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import ImageUploader from "../../../components/ImageUploader";
@@ -79,7 +79,7 @@ export default function AddNewTeacherPage() {
 
   const [formData, setFormData] = useState({
     photoURL: "",
-    email: "",
+    username: "", // Changed from email
     password: "",
     firstName: "",
     lastName: "",
@@ -106,6 +106,7 @@ export default function AddNewTeacherPage() {
 
   useEffect(() => {
     firstNameInputRef.current?.focus();
+    // Fetch batches and subjects
     const unsubBatches = onSnapshot(
       query(collection(db, "batches"), orderBy("name")),
       (s) => setBatches(s.docs.map((d) => ({ id: d.id, ...d.data() })))
@@ -114,11 +115,53 @@ export default function AddNewTeacherPage() {
       query(collection(db, "subjects"), orderBy("name")),
       (s) => setSubjects(s.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
+
+    // --- NEW: Generate Next Employee ID ---
+    const generateNextEmployeeId = async () => {
+      const PREFIX = "23BST";
+      const teachersSnapshot = await getDocs(collection(db, "teachers"));
+      let maxId = 0;
+      teachersSnapshot.forEach((doc) => {
+        const eid = doc.data().employeeId;
+        if (eid && eid.startsWith(PREFIX)) {
+          const numPart = parseInt(eid.substring(PREFIX.length), 10);
+          if (!isNaN(numPart) && numPart > maxId) {
+            maxId = numPart;
+          }
+        }
+      });
+      const nextId = maxId + 1;
+      setFormData((prev) => ({ ...prev, employeeId: `${PREFIX}${nextId}` }));
+    };
+
+    generateNextEmployeeId();
+
     return () => {
       unsubBatches();
       unsubSubjects();
     };
   }, []);
+
+  // --- NEW: useEffect to auto-generate username and password ---
+  useEffect(() => {
+    const { firstName, dob, employeeId } = formData;
+
+    // Username is the employee ID
+    const newUsername = employeeId;
+
+    // Password is firstname(small) + @ + dob(ddmmyyyy)
+    let newPassword = "";
+    if (firstName && dob) {
+      const formattedDob = dob.split("-").reverse().join(""); // yyyy-mm-dd to ddmmyyyy
+      newPassword = `${firstName.toLowerCase().trim()}@${formattedDob}`;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      username: newUsername,
+      password: newPassword,
+    }));
+  }, [formData.firstName, formData.dob, formData.employeeId]);
 
   const handleChange = (e) =>
     setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -234,9 +277,8 @@ export default function AddNewTeacherPage() {
                     <input
                       name="employeeId"
                       value={formData.employeeId}
-                      onChange={handleChange}
-                      required
-                      className={formInputClasses}
+                      readOnly
+                      className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
                     />
                   </div>
                   <div>
@@ -402,16 +444,14 @@ export default function AddNewTeacherPage() {
               <FormSection title="Login Credentials" icon={UserCheck}>
                 <div className="sm:col-span-4">
                   <label className="flex items-center gap-2 text-sm font-medium text-slate mb-2">
-                    <UserIcon size={14} /> Login Email
+                    <UserIcon size={14} /> Username
                   </label>
                   <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                    placeholder="teacher@example.com"
+                    name="username"
+                    value={formData.username}
+                    readOnly
+                    className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                    placeholder="Auto-generated from Employee ID"
                   />
                 </div>
                 <div className="sm:col-span-4">
@@ -420,12 +460,11 @@ export default function AddNewTeacherPage() {
                   </label>
                   <input
                     name="password"
-                    type="password"
+                    type="text"
                     value={formData.password}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                    placeholder="Min. 6 characters"
+                    readOnly
+                    className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                    placeholder="Auto-generated from Name + DOB"
                   />
                 </div>
               </FormSection>

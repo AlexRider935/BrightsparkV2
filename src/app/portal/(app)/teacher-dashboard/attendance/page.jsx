@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   ArrowUpDown,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; // <-- ADD THIS IMPORT
 import { format, isToday, isPast } from "date-fns";
 
 // --- COMPONENTS ---
@@ -175,12 +176,14 @@ export default function MarkAttendancePage() {
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [sortBy, setSortBy] = useState("rollNumber"); // 'rollNumber' or 'name'
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [submitError, setSubmitError] = useState(""); // Add this new state variable at the top
+  const [isLocked, setIsLocked] = useState(false); // <-- ADD THIS NEW LINE
 
   const isMarkingAllowed = isToday(date);
-  const isViewMode =
-    !isToday(date) || (isToday(date) && new Date().getHours() >= 24); // Lock after 12 AM
+  const isViewMode = !isToday(date) || isLocked;
 
-  const teacherName = "Mr. A. K. Sharma"; // Placeholder
+  const { user } = useAuth(); // Get the currently logged-in user
+  const teacherName = user?.name || "Teacher"; // Use the user's name, with a fallback
 
   useEffect(() => {
     const qBatches = query(collection(db, "batches"), orderBy("name"));
@@ -190,6 +193,10 @@ export default function MarkAttendancePage() {
     return () => unsubBatches();
   }, []);
 
+  // --- REPLACE THIS ENTIRE useEffect HOOK ---
+  // --- NEW, SEPARATED useEffect HOOKS ---
+
+  // Effect 1: Fetches the list of students when the batch changes.
   useEffect(() => {
     if (!selectedBatchId) {
       setStudents([]);
@@ -199,34 +206,50 @@ export default function MarkAttendancePage() {
     const selectedBatchName = batches.find(
       (b) => b.id === selectedBatchId
     )?.name;
+    if (!selectedBatchName) {
+      setStudents([]);
+      setLoadingRoster(false);
+      return;
+    }
     const qStudents = query(
       collection(db, "students"),
       where("batch", "==", selectedBatchName)
     );
-
-    const unsubStudents = onSnapshot(qStudents, async (snap) => {
-      const studentList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setStudents(studentList);
-
-      const dateKey = format(date, "yyyy-MM-dd");
-      const attendanceDocId = `${selectedBatchId}_${dateKey}`;
-      const attendanceRef = doc(db, "attendanceRecords", attendanceDocId);
-      const attendanceSnap = await getDoc(attendanceRef);
-
-      if (attendanceSnap.exists()) {
-        setAttendance(attendanceSnap.data().studentStatus || {});
-      } else if (isMarkingAllowed && studentList.length > 0) {
-        const initialAttendance = {}; // Start empty, force teacher to mark
-        setAttendance(initialAttendance);
-      } else {
-        setAttendance({});
-      }
+    const unsubStudents = onSnapshot(qStudents, (snap) => {
+      setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoadingRoster(false);
+    });
+    return () => unsubStudents();
+  }, [selectedBatchId, batches]);
+
+  // Effect 2: Listens for the attendance record in real-time.
+  useEffect(() => {
+    if (!selectedBatchId) {
+      setIsLocked(false);
+      setAttendance({});
+      return;
+    }
+    const dateKey = format(date, "yyyy-MM-dd");
+    const attendanceDocId = `${selectedBatchId}_${dateKey}`;
+    const attendanceRef = doc(db, "attendanceRecords", attendanceDocId);
+
+    // Use onSnapshot for real-time updates
+    const unsubAttendance = onSnapshot(attendanceRef, (docSnap) => {
+      if (docSnap.exists()) {
+        // Record found, so lock the page and show the saved data
+        setAttendance(docSnap.data().studentStatus || {});
+        setIsLocked(true);
+      } else {
+        // No record found, unlock the page and allow marking
+        setAttendance({});
+        setIsLocked(false);
+      }
+      setSubmitError("");
       setIsSubmitted(false);
     });
 
-    return () => unsubStudents();
-  }, [selectedBatchId, date, isMarkingAllowed, batches]);
+    return () => unsubAttendance();
+  }, [selectedBatchId, date]);
 
   const { sortedStudents, summary, allMarked } = useMemo(() => {
     const sorted = [...students].sort((a, b) => {
@@ -272,23 +295,31 @@ export default function MarkAttendancePage() {
   const handleConfirmSubmit = async () => {
     setIsConfirmModalOpen(false);
     setLoading(true);
-    const dateKey = format(date, "yyyy-MM-dd");
-    const attendanceDocId = `${selectedBatchId}_${dateKey}`;
-    const attendanceRef = doc(db, "attendanceRecords", attendanceDocId);
-    const record = {
-      batchId: selectedBatchId,
-      batchName: batches.find((b) => b.id === selectedBatchId)?.name,
-      date: Timestamp.fromDate(date),
-      teacherName: teacherName,
-      studentStatus: attendance,
-    };
+    setSubmitError(""); // Clear previous errors
 
     try {
-      await setDoc(attendanceRef, record, { merge: true });
+      const response = await fetch("/api/submit-attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchId: selectedBatchId,
+          batchName: batches.find((b) => b.id === selectedBatchId)?.name,
+          date: date.toISOString(),
+          studentStatus: attendance,
+          teacherName: teacherName, // Pass the teacher's name
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit attendance.");
+      }
+
       setIsSubmitted(true);
       setTimeout(() => setIsSubmitted(false), 5000);
     } catch (error) {
       console.error("Error submitting attendance:", error);
+      setSubmitError(error.message); // Set the error to display to the user
     } finally {
       setLoading(false);
     }
@@ -308,9 +339,10 @@ export default function MarkAttendancePage() {
       </h1>
       <p className="text-lg text-slate mb-8">
         Select a batch and date. Attendance can only be marked for the current
-        day before midnight.
+        day.
       </p>
 
+      {/* --- Filters Section (No Changes) --- */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
         <div className="relative w-full sm:w-64">
           <select
@@ -344,11 +376,23 @@ export default function MarkAttendancePage() {
         </div>
       </div>
 
+      {/* --- Student List Section --- */}
       <motion.div
         key={selectedBatchId}
         className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}>
+        {/* --- ADD THIS NEW STATUS INDICATOR --- */}
+        {isLocked && (
+          <div className="p-3 text-center bg-slate-800/50 border-b border-slate-700/50">
+            <p className="text-sm font-semibold text-amber-400">
+              Attendance for {format(date, "dd MMM yyyy")} has already been
+              submitted and is now locked.
+            </p>
+          </div>
+        )}
+        {/* --- END OF NEW INDICATOR --- */}
+
         <div className="divide-y divide-slate-700/50 min-h-[100px]">
           {loadingRoster ? (
             <div className="flex justify-center items-center p-12">
@@ -361,18 +405,23 @@ export default function MarkAttendancePage() {
                 student={student}
                 status={attendance[student.id]}
                 onStatusChange={handleStatusChange}
-                isViewMode={isViewMode}
+                isViewMode={isViewMode} // This now correctly controls the view/edit state
                 serialNumber={index + 1}
               />
             ))
           ) : (
             <div className="p-12 text-center text-slate">
-              <p>Please select a batch to view the roster.</p>
+              <p>
+                {selectedBatchId
+                  ? "No students found in this batch."
+                  : "Please select a batch to view the roster."}
+              </p>
             </div>
           )}
         </div>
       </motion.div>
 
+      {/* --- Bottom Summary & Submit Button --- */}
       {selectedBatchId && students.length > 0 && !isViewMode && (
         <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-sm text-slate flex gap-4">
@@ -393,30 +442,41 @@ export default function MarkAttendancePage() {
               <span className="font-bold text-red-400">{summary.absent}</span>
             </span>
           </div>
-          {isSubmitted ? (
-            <div className="flex items-center gap-2 text-green-400 font-semibold">
-              <CheckCircle size={20} />
-              <span>Attendance Submitted!</span>
-            </div>
-          ) : (
-            <button
-              onClick={handleOpenConfirm}
-              disabled={loading || !allMarked}
-              className="flex items-center gap-2 rounded-lg bg-brand-gold px-6 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 disabled:cursor-not-allowed">
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <UserCheck size={18} />
-              )}
-              <span>
-                {allMarked
-                  ? "Submit Attendance"
-                  : `Mark All (${
-                      summary.total - (summary.present + summary.absent)
-                    } left)`}
-              </span>
-            </button>
-          )}
+
+          <div className="flex flex-col items-center gap-2">
+            {/* --- ADD THIS ERROR DISPLAY --- */}
+            {submitError && (
+              <div className="text-center text-sm text-red-400 p-2 bg-red-500/10 rounded-md">
+                {submitError}
+              </div>
+            )}
+            {/* --- END OF ERROR DISPLAY --- */}
+
+            {isSubmitted ? (
+              <div className="flex items-center gap-2 text-green-400 font-semibold">
+                <CheckCircle size={20} />
+                <span>Attendance Submitted!</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleOpenConfirm}
+                disabled={loading || !allMarked}
+                className="flex items-center gap-2 rounded-lg bg-brand-gold px-6 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 disabled:cursor-not-allowed">
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <UserCheck size={18} />
+                )}
+                <span>
+                  {allMarked
+                    ? "Submit Attendance"
+                    : `Mark All (${
+                        summary.total - (summary.present + summary.absent)
+                      } left)`}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

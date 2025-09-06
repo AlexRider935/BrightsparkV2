@@ -703,21 +703,24 @@ export default function ManageTeachersPage() {
     };
   }, []);
 
-const filteredTeachers = useMemo(
-  () =>
-    teachers
-      .filter(
-        (t) =>
-          subjectFilter === "all" || (t.subjects || []).includes(subjectFilter)
-      )
-      .filter((t) => statusFilter === "all" || t.status === statusFilter) // <-- ADD THIS LINE
-      .filter(
-        (t) =>
-          (t.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (t.employeeId || "").toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-  [teachers, subjectFilter, statusFilter, searchTerm] // <-- ADD statusFilter HERE
-);
+  const filteredTeachers = useMemo(
+    () =>
+      teachers
+        .filter(
+          (t) =>
+            subjectFilter === "all" ||
+            (t.subjects || []).includes(subjectFilter)
+        )
+        .filter((t) => statusFilter === "all" || t.status === statusFilter) // <-- ADD THIS LINE
+        .filter(
+          (t) =>
+            (t.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (t.employeeId || "")
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase())
+        ),
+    [teachers, subjectFilter, statusFilter, searchTerm] // <-- ADD statusFilter HERE
+  );
 
   const handleUpdate = async (teacherData) => {
     try {
@@ -733,25 +736,33 @@ const filteredTeachers = useMemo(
     setIsDeleteModalOpen(true);
   };
 
-const confirmDelete = async () => {
-  if (!deletingTeacher) return;
-  try {
-    // We will add photo deletion from Cloudinary later if needed.
-    // For now, we just delete the database records.
+  const confirmDelete = async () => {
+    if (!deletingTeacher) return;
 
-    // Step 1: Delete the main teacher profile document
-    await deleteDoc(doc(db, "teachers", deletingTeacher.id));
+    try {
+      const response = await fetch("/api/delete-teacher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: deletingTeacher.id }), // Send the teacher's UID
+      });
 
-    // Step 2: Delete the associated user role document
-    await deleteDoc(doc(db, "users", deletingTeacher.id));
-  } catch (error) {
-    console.error("Error deleting teacher:", error);
-  } finally {
-    // Step 3: Close the modal and reset the state
-    setIsDeleteModalOpen(false);
-    setDeletingTeacher(null);
-  }
-};
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete teacher.");
+      }
+
+      // The real-time listener (onSnapshot) will automatically update the UI.
+    } catch (error) {
+      console.error("Error deleting teacher:", error);
+      // You can add a user-facing error toast/message here
+    } finally {
+      // Always close the modal and reset the state
+      setIsDeleteModalOpen(false);
+      setDeletingTeacher(null);
+    }
+  };
 
   const handleEdit = (teacher) => {
     setEditingTeacher(teacher);

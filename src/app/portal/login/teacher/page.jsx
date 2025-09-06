@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import { Mail, Lock, LogIn } from "lucide-react";
+import { User, Lock, LogIn } from "lucide-react"; // Changed Mail to User
 import Link from "next/link";
 import Image from "next/image";
 
@@ -50,7 +50,7 @@ const FloatingLabelInput = ({
 };
 
 const TeacherLoginPage = () => {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState(""); // Changed from email to username
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,10 +62,17 @@ const TeacherLoginPage = () => {
     setIsLoading(true);
     setError("");
     try {
-      await login(email, password); // Standard login for teachers
+      // Construct the full internal email from the username/employee ID
+      const internalEmail = `${username
+        .toLowerCase()
+        .trim()}@brightspark.teacher`;
+
+      // Use the constructed email to log in
+      await login(internalEmail, password, "teacher");
+
       router.push("/portal/teacher-dashboard");
     } catch (err) {
-      setError("Invalid credentials. Please check your email and password.");
+      setError("Invalid credentials. Please check your username and password.");
     } finally {
       setIsLoading(false);
     }
@@ -140,12 +147,12 @@ const TeacherLoginPage = () => {
 
             <form onSubmit={handleLogin} className="space-y-6">
               <FloatingLabelInput
-                id="email"
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                icon={Mail}
+                id="username"
+                label="Username / Employee ID"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                icon={User}
               />
               <FloatingLabelInput
                 id="password"

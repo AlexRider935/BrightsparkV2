@@ -146,6 +146,17 @@ const StudentEditModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("Profile");
 
+  // --- ADD THIS NEW FUNCTION ---
+  const handleBatchChange = (e) => {
+    const batchName = e.target.value;
+    const selectedBatch = batches.find((b) => b.name === batchName);
+    setFormData((prev) => ({
+      ...prev,
+      batch: batchName,
+      classLevel: selectedBatch ? selectedBatch.classLevel : "", // Also update the classLevel
+    }));
+  };
+
   useEffect(() => {
     if (student) {
       setFormData({ ...student, subjects: student.subjects || [] });
@@ -350,7 +361,7 @@ const StudentEditModal = ({
                         <select
                           name="batch"
                           value={formData.batch || ""}
-                          onChange={handleChange}
+                          onChange={handleBatchChange} // <-- USE THE NEW HANDLER
                           required
                           className={`${formInputClasses} appearance-none pr-8`}>
                           <option value="" disabled>
@@ -737,119 +748,130 @@ export default function ManageStudentsPage() {
     setDeletingStudent(student);
     setIsDeleteModalOpen(true);
   };
-const confirmDelete = async () => {
-  if (!deletingStudent) return;
+  const confirmDelete = async () => {
+    if (!deletingStudent) return;
 
-  try {
-    // Step 1: Delete the main student profile document
-    await deleteDoc(doc(db, "students", deletingStudent.id));
+    try {
+      const response = await fetch("/api/delete-student", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: deletingStudent.id }), // sending the student's ID (which is the UID)
+      });
 
-    // Step 2: Delete the associated user role document
-    await deleteDoc(doc(db, "users", deletingStudent.id));
-  } catch (error) {
-    console.error("Error deleting student:", error);
-    // You can add a user-facing error message here if you want
-  } finally {
-    // Step 3: Close the modal and reset the state
-    setIsDeleteModalOpen(false);
-    setDeletingStudent(null);
-  }
-};
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete student.");
+      }
+
+      // The onSnapshot listener will automatically update the UI list
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      // Optionally, show an error message to the user here
+    } finally {
+      // Close the modal and reset the state regardless of success or failure
+      setIsDeleteModalOpen(false);
+      setDeletingStudent(null);
+    }
+  };
   const handleEdit = (student) => {
     setEditingStudent(student);
     setIsEditModalOpen(true);
   };
 
-const renderContent = () => {
-  if (loading)
+  const renderContent = () => {
+    if (loading)
+      return (
+        <div className="col-span-full flex justify-center items-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+          <p className="ml-4 text-slate">Loading Students...</p>
+        </div>
+      );
+    if (students.length === 0 && !loading)
+      return (
+        <EmptyState
+          onAction={true}
+          buttonLink="/portal/admin-dashboard/students/new"
+          title="No Students Found"
+          message="Get started by enrolling the first student."
+          buttonText="Add New Student"
+        />
+      );
+    if (filteredStudents.length === 0)
+      return (
+        <EmptyState
+          title="No Results Found"
+          message="Your search or filter criteria did not match any student records."
+          icon={Search}
+        />
+      );
     return (
-      <div className="col-span-full flex justify-center items-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-        <p className="ml-4 text-slate">Loading Students...</p>
-      </div>
-    );
-  if (students.length === 0 && !loading)
-    return (
-      <EmptyState
-        onAction={true}
-        buttonLink="/portal/admin-dashboard/students/new"
-        title="No Students Found"
-        message="Get started by enrolling the first student."
-        buttonText="Add New Student"
-      />
-    );
-  if (filteredStudents.length === 0)
-    return (
-      <EmptyState
-        title="No Results Found"
-        message="Your search or filter criteria did not match any student records."
-        icon={Search}
-      />
-    );
-  return (
-    <motion.div
-      className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden col-span-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}>
-      <div className="overflow-x-auto">
-        <div className="min-w-full">
-          <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase tracking-wider">
-            <div className="col-span-4">Student</div>
-            <div className="col-span-3">Batch & Class</div>
-            <div className="col-span-3">Parent Contact</div>
-            <div className="col-span-1">Status</div>
-            <div className="col-span-1 text-right">Actions</div>
-          </div>
-          <div className="divide-y divide-slate-800">
-            {filteredStudents.map((student) => (
-              <div
-                key={student.id}
-                className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
-                <div className="col-span-4 flex items-center gap-4">
-                  <UserAvatar
-                    name={student.name}
-                    imageUrl={student.photoURL}
-                    size="sm"
-                  />{" "}
-                  <div>
-                    <p className="font-medium text-light-slate">
-                      {student.name}
-                    </p>
+      <motion.div
+        className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden col-span-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}>
+        <div className="overflow-x-auto">
+          <div className="min-w-full">
+            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase tracking-wider">
+              <div className="col-span-4">Student</div>
+              <div className="col-span-3">Batch & Class</div>
+              <div className="col-span-3">Parent Contact</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1 text-right">Actions</div>
+            </div>
+            <div className="divide-y divide-slate-800">
+              {filteredStudents.map((student) => (
+                <div
+                  key={student.id}
+                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
+                  <div className="col-span-4 flex items-center gap-4">
+                    <UserAvatar
+                      name={student.name}
+                      imageUrl={student.photoURL}
+                      size="sm"
+                    />{" "}
+                    <div>
+                      <p className="font-medium text-light-slate">
+                        {student.name}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Roll No: {student.rollNumber}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="col-span-3">
+                    <p className="text-slate-300">{student.batch}</p>
                     <p className="text-xs text-slate-400">
-                      Roll No: {student.rollNumber}
+                      {student.classLevel}
                     </p>
                   </div>
+                  <div className="col-span-3 text-slate-300">
+                    {student.fatherContact || student.parentContact}
+                  </div>
+                  <div className="col-span-1">
+                    <StatusBadge status={student.status} />
+                  </div>
+                  <div className="col-span-1 flex justify-end gap-1">
+                    <button
+                      onClick={() => handleEdit(student)}
+                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(student)}
+                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="col-span-3">
-                  <p className="text-slate-300">{student.batch}</p>
-                  <p className="text-xs text-slate-400">{student.classLevel}</p>
-                </div>
-                <div className="col-span-3 text-slate-300">
-                  {student.fatherContact || student.parentContact}
-                </div>
-                <div className="col-span-1">
-                  <StatusBadge status={student.status} />
-                </div>
-                <div className="col-span-1 flex justify-end gap-1">
-                  <button
-                    onClick={() => handleEdit(student)}
-                    className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
-                    <Edit size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(student)}
-                    className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
-  );
-};
+      </motion.div>
+    );
+  };
 
   return (
     <main>

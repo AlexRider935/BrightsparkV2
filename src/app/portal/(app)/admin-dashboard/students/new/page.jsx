@@ -106,13 +106,15 @@ export default function AddNewStudentPage() {
     specialRequest: "",
   });
 
+  // --- Auto-generates the next available roll number on component mount ---
   useEffect(() => {
     firstNameInputRef.current?.focus();
+
+    // Fetch batches and subjects (existing logic)
     const qBatches = query(collection(db, "batches"), orderBy("name"));
     const unsubBatches = onSnapshot(qBatches, (s) =>
       setBatches(s.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
-
     const fetchSubjects = async () => {
       setLoadingSubjects(true);
       const snapshot = await getDocs(collection(db, "subjects"));
@@ -121,8 +123,68 @@ export default function AddNewStudentPage() {
     };
     fetchSubjects();
 
+    // --- NEW LOGIC: Generate Next Roll Number ---
+    const generateNextRollNumber = async () => {
+      const ROLL_NUMBER_PREFIX = "23BS";
+      const STARTING_NUMBER = 151;
+
+      const studentsCollection = collection(db, "students");
+      const studentsSnapshot = await getDocs(studentsCollection);
+
+      if (studentsSnapshot.empty) {
+        setFormData((prev) => ({
+          ...prev,
+          rollNumber: `${ROLL_NUMBER_PREFIX}${STARTING_NUMBER}`,
+        }));
+        return;
+      }
+
+      let maxNumber = 0;
+      studentsSnapshot.forEach((doc) => {
+        const rollNo = doc.data().rollNumber;
+        if (rollNo && rollNo.startsWith(ROLL_NUMBER_PREFIX)) {
+          const numberPart = parseInt(
+            rollNo.substring(ROLL_NUMBER_PREFIX.length),
+            10
+          );
+          if (!isNaN(numberPart) && numberPart > maxNumber) {
+            maxNumber = numberPart;
+          }
+        }
+      });
+
+      const nextNumber = maxNumber === 0 ? STARTING_NUMBER : maxNumber + 1;
+      setFormData((prev) => ({
+        ...prev,
+        rollNumber: `${ROLL_NUMBER_PREFIX}${nextNumber}`,
+      }));
+    };
+
+    generateNextRollNumber();
+
     return () => unsubBatches();
   }, []);
+
+  // --- Auto-generates username and password when dependencies change ---
+  useEffect(() => {
+    const { firstName, dob, rollNumber } = formData;
+
+    // Set username from roll number
+    const newUsername = rollNumber;
+
+    // Generate password if firstName and dob are available
+    let newPassword = "";
+    if (firstName && dob) {
+      const formattedDob = dob.split("-").reverse().join(""); // yyyy-mm-dd to ddmmyyyy
+      newPassword = `${firstName.toLowerCase().trim()}${formattedDob}`;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      username: newUsername,
+      password: newPassword,
+    }));
+  }, [formData.firstName, formData.dob, formData.rollNumber]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -241,9 +303,8 @@ export default function AddNewStudentPage() {
                     <input
                       name="rollNumber"
                       value={formData.rollNumber}
-                      onChange={handleChange}
-                      required
-                      className={formInputClasses}
+                      readOnly // Make read-only
+                      className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
                     />
                   </div>
                   <div>
@@ -405,10 +466,9 @@ export default function AddNewStudentPage() {
                   <input
                     name="username"
                     value={formData.username}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                    placeholder="e.g., anil.kumar05"
+                    readOnly // Make read-only
+                    className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                    placeholder="Auto-generated from Roll No."
                   />
                 </div>
                 <div className="sm:col-span-4">
@@ -417,12 +477,11 @@ export default function AddNewStudentPage() {
                   </label>
                   <input
                     name="password"
-                    type="password"
+                    type="text" // Change to text to show the generated password
                     value={formData.password}
-                    onChange={handleChange}
-                    required
-                    className={formInputClasses}
-                    placeholder="Min. 6 characters"
+                    readOnly // Make read-only
+                    className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                    placeholder="Auto-generated from Name + DOB"
                   />
                 </div>
               </FormSection>

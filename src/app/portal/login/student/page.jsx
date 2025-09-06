@@ -63,32 +63,19 @@ const StudentLoginPage = () => {
     setIsLoading(true);
     setError("");
     try {
-      // Step 1: Find the user document in Firestore that matches the username
-      const usersRef = collection(db, "users");
-      const q = query(
-        usersRef,
-        where("username", "==", username.toLowerCase().trim())
-      );
-      const querySnapshot = await getDocs(q);
+      // Step 1: Construct the full internal email from the username. No database query needed.
+      const internalEmail = `${username
+        .toLowerCase()
+        .trim()}@brightspark.student`;
 
-      if (querySnapshot.empty) {
-        throw new Error("User not found");
-      }
+      // Step 2: Use the constructed email to log in via the AuthContext.
+      // The AuthContext's login function will handle the actual Firebase Authentication.
+      await login(internalEmail, password, "student");
 
-      // Step 2: Get the internal email from the found document
-      const userData = querySnapshot.docs[0].data();
-      const internalEmail = userData.email;
-
-      if (!internalEmail) {
-        throw new Error("Login configuration error for this user.");
-      }
-
-      // Step 3: Use the internal email to log in via the AuthContext
-      await login(internalEmail, password, "student"); // Pass role for verification
-
+      // On success, the AuthContext will set the user and this will redirect.
       router.push("/portal/student-dashboard");
     } catch (err) {
-      console.error(err);
+      console.error("Login attempt failed:", err);
       setError("Invalid credentials. Please check your username and password.");
     } finally {
       setIsLoading(false);

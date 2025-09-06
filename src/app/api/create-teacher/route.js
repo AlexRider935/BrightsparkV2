@@ -4,24 +4,31 @@ import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/firebase/admin-config";
 import { Timestamp } from "firebase-admin/firestore";
 
+// 1. Define an internal email domain for teachers
+const INTERNAL_EMAIL_DOMAIN = "brightspark.teacher";
+
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { email, password, firstName, lastName, ...profileData } = body;
+        // 2. Destructure 'username' instead of 'email' from the request
+        const { username, password, firstName, lastName, ...profileData } = body;
 
-        if (!email || !password || !firstName || !lastName) {
-            return NextResponse.json({ error: "Email, password, and name are required." }, { status: 400 });
+        // Use the username (Employee ID) for the validation check
+        if (!username || !password || !firstName || !lastName) {
+            return NextResponse.json({ error: "Username, password, and name are required." }, { status: 400 });
         }
 
         const fullName = `${firstName} ${lastName}`.trim();
 
-        // --- Step 1: Create user in Firebase Authentication ---
+        // 3. Construct the internal email from the username
+        const internalEmail = `${username.toLowerCase().trim()}@${INTERNAL_EMAIL_DOMAIN}`;
+
+
+        // --- Step 1: Create user in Firebase Authentication using the internal email ---
         const userRecord = await adminAuth.createUser({
-            email: email,
+            email: internalEmail,
             password: password,
             displayName: fullName,
-            // THIS IS THE FIX: Use 'undefined' to omit the photoURL property if it's empty,
-            // which prevents the Firebase Auth error.
             photoURL: profileData.photoURL || undefined,
         });
         const { uid } = userRecord;
@@ -30,7 +37,8 @@ export async function POST(request) {
         const teacherProfile = {
             ...profileData,
             uid: uid,
-            email: email,
+            username: username, // Add username to the profile
+            email: internalEmail, // Store the internal email
             firstName: firstName,
             lastName: lastName,
             name: fullName,
@@ -53,9 +61,9 @@ export async function POST(request) {
         const userRef = adminDb.collection("users").doc(uid);
         batch.set(userRef, {
             name: fullName,
-            email: email,
+            username: username, // Add username here too
+            email: internalEmail,
             role: "teacher",
-            // Storing null in Firestore is good practice for an empty photo field.
             photoURL: profileData.photoURL || null,
         });
 
@@ -64,16 +72,15 @@ export async function POST(request) {
         return NextResponse.json({ message: "Teacher added successfully!", uid: uid }, { status: 201 });
 
     } catch (error) {
-        // Handle specific Firebase Auth errors
+        // 4. Update the error message for clarity
         if (error.code === 'auth/email-already-exists') {
-            return NextResponse.json({ error: "This email is already in use by another account." }, { status: 409 });
+            return NextResponse.json({ error: "This Employee ID (username) is already taken." }, { status: 409 });
         }
         if (error.code === 'auth/invalid-photo-url') {
             return NextResponse.json({ error: "The provided photo URL is invalid." }, { status: 400 });
         }
 
         console.error("Error creating teacher:", error);
-        // Return a generic error for other issues
         return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
     }
 }
