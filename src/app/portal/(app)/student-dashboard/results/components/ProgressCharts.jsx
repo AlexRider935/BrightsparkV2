@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine, // <-- FIX 1: Import the ReferenceLine component
 } from "recharts";
 import { format } from "date-fns";
 
@@ -15,7 +16,7 @@ import { format } from "date-fns";
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-white/10 bg-dark-navy/80 p-3 backdrop-blur-lg">
+      <div className="rounded-lg border border-slate-700 bg-dark-navy/90 p-3 shadow-lg backdrop-blur-sm">
         <p className="text-sm font-semibold text-light-slate">{`Date: ${format(
           new Date(label),
           "MMM d, yyyy"
@@ -27,7 +28,20 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export default function ProgressChart({ data }) {
+export default function ProgressChart({ data, average }) {
+  // --- FIX 2: Handle case with not enough data to draw a line ---
+  if (!data || data.length <= 1) {
+    return (
+      <div
+        style={{ width: "100%", height: 300 }}
+        className="flex items-center justify-center">
+        <p className="text-slate text-sm">
+          More data is needed to show a performance trend.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: "100%", height: 300 }}>
       <ResponsiveContainer>
@@ -41,8 +55,8 @@ export default function ProgressChart({ data }) {
           <XAxis
             dataKey="date"
             tickFormatter={(date) => format(new Date(date), "MMM d")}
-            stroke="#8892b0" // slate color for axis
-            tick={{ fill: "#8892b0", fontSize: 12 }} // slate color for ticks
+            stroke="#8892b0"
+            tick={{ fill: "#8892b0", fontSize: 12 }}
           />
           <YAxis
             stroke="#8892b0"
@@ -51,10 +65,24 @@ export default function ProgressChart({ data }) {
             tickFormatter={(value) => `${value}%`}
           />
           <Tooltip content={<CustomTooltip />} />
+
+          {/* --- FIX 3: Add the ReferenceLine for the subject average --- */}
+          <ReferenceLine
+            y={average}
+            label={{
+              value: "Avg",
+              position: "insideTopLeft",
+              fill: "#8892b0",
+              fontSize: 12,
+            }}
+            stroke="#8892b0"
+            strokeDasharray="4 4"
+          />
+
           <Line
             type="monotone"
             dataKey="percentage"
-            stroke="#ffcc00" // brand-gold
+            stroke="#ffcc00"
             strokeWidth={2}
             dot={{ r: 4, fill: "#ffcc00" }}
             activeDot={{

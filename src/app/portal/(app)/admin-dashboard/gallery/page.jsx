@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/firebase/config";
 import {
@@ -20,13 +20,14 @@ import {
   Edit,
   Trash2,
   X,
-  ExternalLink,
+  ChevronDown,
+  Search,
   Loader2,
   AlertTriangle,
-  Calendar,
-  Check,
+  ExternalLink,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 // --- HELPER & UI COMPONENTS ---
 
@@ -56,18 +57,20 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
   useEffect(() => {
     const initialData = {
       title: "",
-      eventDate: new Date().toISOString().split("T")[0],
       gdriveLink: "",
+      eventDate: format(new Date(), "yyyy-MM-dd"),
       status: "Published",
     };
-    let dataToSet = album ? { ...album } : initialData;
-    if (dataToSet.eventDate instanceof Timestamp) {
-      dataToSet.eventDate = dataToSet.eventDate
-        .toDate()
-        .toISOString()
-        .split("T")[0];
+    if (album) {
+      setFormData({
+        ...album,
+        eventDate: album.eventDate
+          ? format(album.eventDate.toDate(), "yyyy-MM-dd")
+          : format(new Date(), "yyyy-MM-dd"),
+      });
+    } else {
+      setFormData(initialData);
     }
-    setFormData(dataToSet);
     if (isOpen) setTimeout(() => titleInputRef.current?.focus(), 100);
   }, [album, isOpen]);
 
@@ -76,33 +79,37 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
-    await onSave(formData);
+    const dataToSave = {
+      ...formData,
+      eventDate: Timestamp.fromDate(new Date(formData.eventDate)),
+    };
+    await onSave(dataToSave);
     setIsSaving(false);
     onClose();
   };
 
   if (!isOpen) return null;
   const formInputClasses =
-    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold";
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-colors";
 
   return (
     <AnimatePresence>
       <motion.div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={onClose}>
+        exit={{ opacity: 0 }}>
         <motion.div
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-dark-navy/90 p-6 shadow-2xl backdrop-blur-xl"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 20, opacity: 0 }}
-          onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/90 p-6 shadow-2xl backdrop-blur-xl">
+          exit={{ y: 20, opacity: 0 }}>
           <h2 className="text-xl font-bold text-brand-gold mb-6">
             {album ? "Edit Album" : "Add New Album"}
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label
                 htmlFor="title"
@@ -110,34 +117,34 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                 Album Title
               </label>
               <input
-                type="text"
+                ref={titleInputRef}
                 id="title"
                 name="title"
-                ref={titleInputRef}
                 value={formData.title || ""}
                 onChange={handleChange}
-                className={formInputClasses}
                 required
+                className={formInputClasses}
+                placeholder="e.g., Annual Sports Day 2025"
               />
             </div>
             <div>
               <label
                 htmlFor="gdriveLink"
                 className="block text-sm font-medium text-slate mb-2">
-                Google Drive Folder Link
+                Google Drive Link
               </label>
               <input
-                type="url"
                 id="gdriveLink"
                 name="gdriveLink"
+                type="url"
                 value={formData.gdriveLink || ""}
                 onChange={handleChange}
-                className={formInputClasses}
-                placeholder="https://..."
                 required
+                className={formInputClasses}
+                placeholder="https://drive.google.com/..."
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-700/50 pt-5">
               <div>
                 <label
                   htmlFor="eventDate"
@@ -145,16 +152,16 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                   Event Date
                 </label>
                 <input
-                  type="date"
                   id="eventDate"
                   name="eventDate"
+                  type="date"
                   value={formData.eventDate || ""}
                   onChange={handleChange}
-                  className={`${formInputClasses} pr-2`}
                   required
+                  className={formInputClasses}
                 />
               </div>
-              <div>
+              <div className="relative">
                 <label
                   htmlFor="status"
                   className="block text-sm font-medium text-slate mb-2">
@@ -163,13 +170,14 @@ const AlbumModal = ({ isOpen, onClose, onSave, album }) => {
                 <select
                   id="status"
                   name="status"
-                  value={formData.status || "Published"}
+                  value={formData.status || ""}
                   onChange={handleChange}
-                  className={formInputClasses}
-                  required>
+                  required
+                  className={`${formInputClasses} appearance-none pr-8`}>
                   <option value="Published">Published</option>
                   <option value="Draft">Draft</option>
                 </select>
+                <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-4">
@@ -211,17 +219,18 @@ const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, albumTitle }) => {
         exit={{ opacity: 0 }}>
         <motion.div
           className="relative w-full max-w-md rounded-2xl border border-red-500/30 bg-dark-navy p-6 text-center"
-          initial={{ scale: 0.95 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0.95 }}
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}>
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
             <AlertTriangle className="h-6 w-6 text-red-400" />
           </div>
           <h3 className="mt-4 text-lg font-bold text-white">Delete Album</h3>
           <p className="mt-2 text-sm text-slate">
-            Are you sure you want to delete the album{" "}
+            Are you sure you want to delete{" "}
             <span className="font-bold text-light-slate">"{albumTitle}"</span>?
+            This action is permanent.
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <button
@@ -248,7 +257,7 @@ const EmptyState = ({
   buttonText,
   icon: Icon = ImageIcon,
 }) => (
-  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10 col-span-full">
+  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10">
     <Icon className="mx-auto h-12 w-12 text-slate-500" />
     <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
     <p className="mt-2 text-sm text-slate">{message}</p>
@@ -263,60 +272,17 @@ const EmptyState = ({
   </div>
 );
 
-const AlbumCard = ({ album, onEdit, onDelete }) => (
-  <motion.div
-    className="rounded-2xl border border-white/10 bg-slate-900/30 p-5 flex flex-col justify-between backdrop-blur-sm transition-all hover:border-white/20 hover:bg-slate-900/50"
-    layout
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}>
-    <div>
-      <div className="flex items-start justify-between gap-4">
-        <h3 className="font-bold text-lg text-light-slate">{album.title}</h3>
-        <StatusBadge status={album.status} />
-      </div>
-      <div className="mt-3 text-sm text-slate-400 flex items-center gap-2">
-        <Calendar size={14} />
-        <span>
-          {album.eventDate
-            ? format(album.eventDate.toDate(), "MMM dd, yyyy")
-            : "N/A"}
-        </span>
-      </div>
-    </div>
-    <div className="mt-5 pt-4 border-t border-slate-700/50 flex justify-between items-center gap-2">
-      <a
-        href={album.gdriveLink}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20 transition-colors">
-        <ExternalLink size={16} /> View Album
-      </a>
-      <div className="flex gap-1">
-        <button
-          onClick={() => onEdit(album)}
-          className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
-          <Edit size={16} />
-        </button>
-        <button
-          onClick={() => onDelete(album)}
-          className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </div>
-  </motion.div>
-);
-
 export default function ManageGalleryPage() {
   const [albums, setAlbums] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ status: "all" });
+  const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingAlbum, setDeletingAlbum] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
     const q = query(
       collection(db, "galleryAlbums"),
       orderBy("eventDate", "desc")
@@ -331,11 +297,20 @@ export default function ManageGalleryPage() {
     return () => unsubscribe();
   }, []);
 
+  const filteredAlbums = useMemo(
+    () =>
+      albums
+        .filter((a) => filters.status === "all" || a.status === filters.status)
+        .filter((a) =>
+          (a.title || "").toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [albums, filters, searchTerm]
+  );
+
   const handleSave = async (formData) => {
     try {
       const dataToSave = {
         ...formData,
-        eventDate: Timestamp.fromDate(new Date(formData.eventDate)),
         updatedAt: Timestamp.now(),
       };
       if (editingAlbum) {
@@ -346,6 +321,7 @@ export default function ManageGalleryPage() {
           createdAt: Timestamp.now(),
         });
       }
+      setIsModalOpen(false);
     } catch (error) {
       console.error("Error saving album:", error);
     }
@@ -374,30 +350,90 @@ export default function ManageGalleryPage() {
   const renderContent = () => {
     if (loading)
       return (
-        <div className="flex justify-center items-center py-20 col-span-full">
+        <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
         </div>
       );
-    if (albums.length === 0)
+    if (albums.length === 0 && !loading)
       return (
         <EmptyState
           onAction={handleCreate}
-          title="No Albums Found"
-          message="Get started by adding the first photo album link."
+          title="No Albums Yet"
+          message="Add the first photo album to get started."
           buttonText="Add New Album"
         />
       );
+    if (filteredAlbums.length === 0)
+      return (
+        <EmptyState
+          title="No Results Found"
+          message="Your search or filters did not match any albums."
+          icon={Search}
+        />
+      );
+
     return (
-      <AnimatePresence>
-        {albums.map((album) => (
-          <AlbumCard
-            key={album.id}
-            album={album}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-      </AnimatePresence>
+      <motion.div
+        className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}>
+        <div className="overflow-x-auto">
+          <div className="min-w-full">
+            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase tracking-wider">
+              <div className="col-span-5">Album Title</div>
+              <div className="col-span-2">Status</div>
+              <div className="col-span-2">Event Date</div>
+              <div className="col-span-2">Last Updated</div>
+              <div className="col-span-1 text-right">Actions</div>
+            </div>
+            <div className="divide-y divide-slate-800">
+              {filteredAlbums.map((album) => (
+                <div
+                  key={album.id}
+                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
+                  <div className="col-span-5 font-medium text-light-slate truncate">
+                    {album.title}
+                  </div>
+                  <div className="col-span-2">
+                    <StatusBadge status={album.status} />
+                  </div>
+                  <div className="col-span-2 text-slate-400">
+                    {album.eventDate
+                      ? format(album.eventDate.toDate(), "MMM dd, yyyy")
+                      : "N/A"}
+                  </div>
+                  <div className="col-span-2 text-slate-400">
+                    {album.updatedAt
+                      ? formatDistanceToNow(album.updatedAt.toDate(), {
+                          addSuffix: true,
+                        })
+                      : "N/A"}
+                  </div>
+                  <div className="col-span-1 flex justify-end gap-1">
+                    <a
+                      href={album.gdriveLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+                      <ExternalLink size={16} />
+                    </a>
+                    <button
+                      onClick={() => handleEdit(album)}
+                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(album)}
+                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.div>
     );
   };
 
@@ -409,7 +445,7 @@ export default function ManageGalleryPage() {
             Manage Gallery
           </h1>
           <p className="text-base text-slate">
-            Add and manage all event photo album links.
+            Add, edit, and manage all event photo album links.
           </p>
         </div>
         <button
@@ -419,9 +455,39 @@ export default function ManageGalleryPage() {
           <span>Add New Album</span>
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {renderContent()}
-      </div>
+
+      <AnimatePresence>
+        {albums.length > 0 && (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}>
+            <div className="relative">
+              <select
+                onChange={(e) => setFilters({ status: e.target.value })}
+                className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
+                <option value="all">All Statuses</option>
+                <option value="Published">Published</option>
+                <option value="Draft">Draft</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by album title..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 p-3 rounded-lg border border-slate-700 bg-slate-900 text-light-slate focus:border-brand-gold"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {renderContent()}
+
       <AlbumModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

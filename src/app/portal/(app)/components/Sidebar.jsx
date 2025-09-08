@@ -3,8 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-// --- THE FIX IS HERE (Step 1) ---
-// We import our custom useAuth hook to get the real user and logout function
 import { useAuth } from "@/context/AuthContext";
 
 // --- ICON IMPORTS ---
@@ -41,6 +39,7 @@ import {
 
 // --- STUDENT NAV ITEMS ---
 const studentNavItems = [
+  // ... (no changes here)
   {
     href: "/portal/student-dashboard",
     label: "Dashboard",
@@ -101,7 +100,7 @@ const studentNavItems = [
   },
 ];
 
-// --- TEACHER NAV ITEMS ---
+// --- TEACHER NAV ITEMS (Updated) ---
 const teacherNavItems = [
   {
     href: "/portal/teacher-dashboard",
@@ -125,7 +124,7 @@ const teacherNavItems = [
     Icon: ClipboardList,
   },
   {
-    href: "/portal/teacher-dashboard/results",
+    href: "/portal/teacher-dashboard/grades",
     label: "Gradebook",
     Icon: BookMarked,
   },
@@ -145,6 +144,12 @@ const teacherNavItems = [
     label: "Manage Gallery",
     Icon: ImageIcon,
   },
+  // --- ADD THIS LINE FOR TEACHERS ---
+  {
+    href: "/portal/teacher-dashboard/events",
+    label: "Manage Events",
+    Icon: CalendarDays,
+  },
   { type: "divider" },
   { href: "/portal/teacher-dashboard/profile", label: "Profile", Icon: User },
   {
@@ -154,7 +159,7 @@ const teacherNavItems = [
   },
 ];
 
-// --- ADMIN NAV ITEMS ---
+// --- ADMIN NAV ITEMS (Updated) ---
 const adminNavItems = [
   {
     href: "/portal/admin-dashboard",
@@ -203,6 +208,12 @@ const adminNavItems = [
     label: "Gallery",
     Icon: ImageIcon,
   },
+  // --- ADD THIS LINE FOR ADMINS ---
+  {
+    href: "/portal/admin-dashboard/events",
+    label: "Manage Events",
+    Icon: CalendarDays,
+  },
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/fees",
@@ -250,13 +261,7 @@ const adminNavItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  // --- THE FIX IS HERE (Step 2) ---
-  // We get the REAL user and logout function from our AuthContext
   const { user, logout } = useAuth();
-
-  // Now we can remove the old mock user and logout function
-  // const user = { name: "Admin User", role: "Admin" }; // <-- REMOVED
-  // const logout = () => console.log("Logout clicked!"); // <-- REMOVED
 
   const navItems = pathname.startsWith("/portal/admin-dashboard")
     ? adminNavItems
