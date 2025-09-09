@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/firebase/config";
 import {
@@ -22,10 +22,11 @@ import {
   Calendar,
   UserSquare,
   MapPin,
+  Mail,
 } from "lucide-react";
 import { format } from "date-fns";
 
-// --- NEW COMPONENT: Student Detail Modal ---
+// --- UPDATED: Student Detail Modal ---
 const StudentDetailModal = ({ isOpen, onClose, student }) => {
   if (!isOpen || !student) return null;
 
@@ -35,9 +36,23 @@ const StudentDetailModal = ({ isOpen, onClose, student }) => {
         <Icon size={14} />
         <span>{label}</span>
       </div>
-      <p className="mt-1 font-semibold text-light-slate">{value || "N/A"}</p>
+      <p className="mt-1 font-semibold text-light-slate break-words">
+        {value || "N/A"}
+      </p>
     </div>
   );
+
+  // Helper to format the address from multiple fields
+  const getFullAddress = () => {
+    const parts = [
+      student.addressStreet,
+      student.addressState,
+      student.addressPincode,
+    ];
+    const validParts = parts.filter((p) => p); // Filter out empty or null parts
+    if (validParts.length === 0) return "N/A";
+    return validParts.join(", ");
+  };
 
   return (
     <AnimatePresence>
@@ -99,30 +114,30 @@ const StudentDetailModal = ({ isOpen, onClose, student }) => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-slate-700/50 pt-6">
               <DetailItem
                 Icon={UserSquare}
-                label="Parent's Name"
-                value={student.parentName}
+                label="Father's Name"
+                value={student.fatherName}
               />
               <DetailItem
                 Icon={Phone}
-                label="Parent's Contact"
-                value={student.parentContact}
+                label="Father's Contact"
+                value={student.fatherContact}
               />
               <DetailItem
-                Icon={Phone}
-                label="Emergency Contact"
-                value={student.emergencyContact || student.parentContact}
+                Icon={Mail}
+                label="Parent's Email"
+                value={student.parentEmail}
               />
             </div>
-            <div>
+            <div className="border-t border-slate-700/50 pt-6">
               <DetailItem
                 Icon={MapPin}
                 label="Address"
-                value={student.address}
+                value={getFullAddress()}
               />
             </div>
           </div>
 
-          <div className="flex justify-end pt-8">
+          <div className="flex justify-end pt-8 mt-4 border-t border-slate-700/50">
             <button
               type="button"
               onClick={onClose}
@@ -136,7 +151,7 @@ const StudentDetailModal = ({ isOpen, onClose, student }) => {
   );
 };
 
-// Component for a single student row
+// --- UPDATED: Student Row ---
 const StudentRow = ({ student, index, onView }) => (
   <motion.div
     className="grid grid-cols-6 gap-4 items-center p-4"
@@ -153,9 +168,10 @@ const StudentRow = ({ student, index, onView }) => (
       </div>
     </div>
     <div className="col-span-2">
+      {/* --- FIX: Displaying fatherContact now --- */}
       <div className="flex items-center gap-2 text-sm text-slate">
         <Phone size={14} />
-        <span>{student.parentContact}</span>
+        <span>{student.fatherContact || "N/A"}</span>
       </div>
     </div>
     <div className="col-span-1 text-right">
@@ -175,12 +191,12 @@ export default function StudentRosterPage() {
   const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewingStudent, setViewingStudent] = useState(null); // State for the modal
+  const [viewingStudent, setViewingStudent] = useState(null);
 
   useEffect(() => {
     setLoading(true);
     const unsubStudents = onSnapshot(
-      query(collection(db, "students"), orderBy("name")),
+      query(collection(db, "students"), orderBy("rollNumber")), // Better to sort by roll number
       (snap) => {
         setAllStudents(
           snap.docs
@@ -282,7 +298,8 @@ export default function StudentRosterPage() {
           <>
             <div className="grid grid-cols-6 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate">
               <div className="col-span-3">Student Name</div>
-              <div className="col-span-2">Parent Contact</div>
+              {/* --- FIX: Updated header --- */}
+              <div className="col-span-2">Father's Contact</div>
               <div className="col-span-1 text-right">Actions</div>
             </div>
             <div className="divide-y divide-slate-700/50">

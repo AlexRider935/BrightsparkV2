@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "@/firebase/config";
+import { useAuth } from "@/context/AuthContext";
 import {
   collection,
   onSnapshot,
@@ -13,6 +14,7 @@ import {
   query,
   orderBy,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   Megaphone,
@@ -24,8 +26,10 @@ import {
   AlertTriangle,
   Filter,
   ChevronDown,
+  Star,
+  Search,
 } from "lucide-react";
-import { format, isPast, formatDistanceToNow } from "date-fns";
+import { format, isPast, formatDistanceToNow, addDays } from "date-fns";
 
 // --- HELPER & UI COMPONENTS ---
 
@@ -33,7 +37,7 @@ const StatusBadge = ({ expiryDate }) => {
   if (!expiryDate)
     return (
       <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-600/20 text-slate-400">
-        Expired
+        No Expiry
       </span>
     );
 
@@ -57,7 +61,10 @@ const AnnouncementModal = ({
   announcement,
   batches,
 }) => {
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState({
+    showOnDashboard: false,
+    showOnDashboardUntil: "",
+  });
   const [isSaving, setIsSaving] = useState(false);
   const titleInputRef = useRef(null);
 
@@ -72,21 +79,24 @@ const AnnouncementModal = ({
   );
 
   useEffect(() => {
-    const defaultExpiry = new Date();
-    defaultExpiry.setDate(defaultExpiry.getDate() + 7);
+    const defaultPinnedDate = format(addDays(new Date(), 7), "yyyy-MM-dd");
     const initialData = {
       title: "",
       content: "",
-      target: "All Users",
-      expiryDate: defaultExpiry.toISOString().split("T")[0],
+      target: "All Students",
+      showOnDashboard: false,
+      showOnDashboardUntil: defaultPinnedDate,
     };
 
     let dataToSet = announcement ? { ...announcement } : initialData;
-    if (dataToSet.expiryDate instanceof Timestamp) {
-      dataToSet.expiryDate = dataToSet.expiryDate
+
+    if (dataToSet.showOnDashboardUntil instanceof Timestamp) {
+      dataToSet.showOnDashboardUntil = dataToSet.showOnDashboardUntil
         .toDate()
         .toISOString()
         .split("T")[0];
+    } else {
+      dataToSet.showOnDashboardUntil = defaultPinnedDate;
     }
 
     setFormData(dataToSet);
@@ -94,8 +104,13 @@ const AnnouncementModal = ({
     if (isOpen) setTimeout(() => titleInputRef.current?.focus(), 100);
   }, [announcement, isOpen]);
 
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,6 +121,9 @@ const AnnouncementModal = ({
   };
 
   if (!isOpen) return null;
+
+  const formInputClasses =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold";
 
   return (
     <AnimatePresence>
@@ -139,7 +157,7 @@ const AnnouncementModal = ({
                   value={formData.title || ""}
                   onChange={handleChange}
                   required
-                  className="form-input"
+                  className={formInputClasses}
                 />
               </div>
               <div>
@@ -156,47 +174,78 @@ const AnnouncementModal = ({
                   rows="5"
                   required
                   placeholder="Enter the full text of the announcement here..."
-                  className="form-input"
+                  className={formInputClasses}
                 />
               </div>
             </fieldset>
 
-            <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-700/50 pt-6">
-              <div>
-                <label
-                  htmlFor="target"
-                  className="block text-sm font-medium text-slate mb-2">
-                  Target Audience
-                </label>
+            {/* FIX #2: Removed the redundant "Visible Until" field */}
+            <fieldset className="border-t border-slate-700/50 pt-6">
+              <label
+                htmlFor="target"
+                className="block text-sm font-medium text-slate mb-2">
+                Target Audience
+              </label>
+              <div className="relative">
                 <select
                   id="target"
                   name="target"
                   value={formData.target || "All Users"}
                   onChange={handleChange}
-                  className="form-input">
+                  className={`${formInputClasses} appearance-none pr-8`}>
                   {audienceOptions.map((aud) => (
                     <option key={aud} value={aud}>
                       {aud}
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
               </div>
-              <div>
-                <label
-                  htmlFor="expiryDate"
-                  className="block text-sm font-medium text-slate mb-2">
-                  Visible Until
-                </label>
+            </fieldset>
+
+            {/* FIX #1: Improved UI for this section */}
+            <fieldset className="space-y-4 border-t border-slate-700/50 pt-6">
+              <label className="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700 hover:border-slate-600 cursor-pointer">
                 <input
-                  id="expiryDate"
-                  name="expiryDate"
-                  type="date"
-                  value={formData.expiryDate || ""}
+                  type="checkbox"
+                  id="showOnDashboard"
+                  name="showOnDashboard"
+                  checked={!!formData.showOnDashboard}
                   onChange={handleChange}
-                  required
-                  className="form-input"
+                  className="h-5 w-5 rounded bg-slate-800 border-slate-600 text-brand-gold focus:ring-brand-gold focus:ring-offset-dark-navy"
                 />
-              </div>
+                <div>
+                  <span className="font-medium text-light-slate">
+                    Pin to Student Dashboard
+                  </span>
+                  <p className="text-xs text-slate-400">
+                    Prioritize this announcement on the main dashboard.
+                  </p>
+                </div>
+              </label>
+              <AnimatePresence>
+                {formData.showOnDashboard && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}>
+                    <label
+                      htmlFor="showOnDashboardUntil"
+                      className="block text-sm font-medium text-slate mb-2">
+                      Pinned Until
+                    </label>
+                    <input
+                      id="showOnDashboardUntil"
+                      name="showOnDashboardUntil"
+                      type="date"
+                      value={formData.showOnDashboardUntil || ""}
+                      onChange={handleChange}
+                      required={formData.showOnDashboard}
+                      className={formInputClasses}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </fieldset>
 
             <div className="flex justify-end gap-3 pt-4">
@@ -225,9 +274,8 @@ const AnnouncementModal = ({
     </AnimatePresence>
   );
 };
-
+// ... (ConfirmDeleteModal and EmptyState components remain the same) ...
 const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, title }) => {
-  // Redacted for brevity
   if (!isOpen) return null;
   return (
     <div
@@ -284,18 +332,17 @@ const EmptyState = ({
   </div>
 );
 
-// --- MAIN PAGE COMPONENT ---
 export default function TeacherAnnouncementsPage() {
+  const { user } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [filters, setFilters] = useState({ status: "all", target: "all" });
+  const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState(null);
-
-  const currentTeacher = { name: "Mr. A. K. Sharma" }; // Placeholder
 
   useEffect(() => {
     setLoading(true);
@@ -305,9 +352,7 @@ export default function TeacherAnnouncementsPage() {
     );
     const unsubAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
       setAnnouncements(
-        snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((doc) => doc.id !== "--placeholder--")
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       );
       setLoading(false);
     });
@@ -323,39 +368,85 @@ export default function TeacherAnnouncementsPage() {
     };
   }, []);
 
+  const audienceOptions = useMemo(
+    () => [
+      "All Users",
+      "All Students",
+      "All Teachers",
+      ...batches.map((b) => b.name),
+    ],
+    [batches]
+  );
+
   const filteredAnnouncements = useMemo(
     () =>
-      announcements.filter((item) => {
-        if (statusFilter === "all") return true;
-        const isExpired = item.expiryDate
-          ? isPast(item.expiryDate.toDate())
-          : true;
-        return statusFilter === "active" ? !isExpired : isExpired;
-      }),
-    [announcements, statusFilter]
+      announcements
+        .filter((item) => {
+          if (filters.status === "all") return true;
+          const expiryDate = item.expiryDate?.toDate();
+          if (!expiryDate) return filters.status === "expired";
+          const isExpired = isPast(expiryDate);
+          return filters.status === "active" ? !isExpired : isExpired;
+        })
+        .filter(
+          (item) => filters.target === "all" || item.target === filters.target
+        )
+        .filter((item) =>
+          item.title.toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [announcements, filters, searchTerm]
   );
 
   const handleSave = async (data) => {
     try {
+      // FIX #2: Simplified date logic
+      const isPinned = data.showOnDashboard;
+      const expiryDate = isPinned
+        ? new Date(data.showOnDashboardUntil)
+        : addDays(new Date(), 7); // Default 7 days if not pinned
+
       const dataToSave = {
-        ...data,
-        expiryDate: Timestamp.fromDate(new Date(data.expiryDate)),
+        title: data.title,
+        content: data.content,
+        target: data.target,
+        expiryDate: Timestamp.fromDate(expiryDate),
+        showOnDashboard: isPinned,
+        showOnDashboardUntil: isPinned
+          ? Timestamp.fromDate(new Date(data.showOnDashboardUntil))
+          : null,
+        updatedAt: serverTimestamp(),
       };
+
       if (editingAnnouncement) {
         await updateDoc(
           doc(db, "announcements", editingAnnouncement.id),
           dataToSave
         );
       } else {
-        await addDoc(collection(db, "announcements"), {
-          ...dataToSave,
-          createdAt: Timestamp.now(),
-          createdBy: currentTeacher.name,
-        });
+        dataToSave.createdAt = serverTimestamp();
+        dataToSave.createdBy = user?.profile?.name || "Unknown User";
+        await addDoc(collection(db, "announcements"), dataToSave);
+
+        // FIX #3: Only send email if a student audience is selected
+        if (
+          data.target.includes("Student") ||
+          batches.some((b) => b.name === data.target)
+        ) {
+          await fetch("/api/send-announcement", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: data.title,
+              content: data.content,
+              target: data.target,
+            }),
+          });
+        }
       }
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error saving announcement:", error);
+      alert("Error: " + error.message);
     }
   };
 
@@ -383,6 +474,8 @@ export default function TeacherAnnouncementsPage() {
     setEditingAnnouncement(announcement);
     setIsModalOpen(true);
   };
+  const handleFilterChange = (name, value) =>
+    setFilters((prev) => ({ ...prev, [name]: value }));
 
   const renderContent = () => {
     if (loading)
@@ -404,10 +497,11 @@ export default function TeacherAnnouncementsPage() {
       return (
         <EmptyState
           title="No Results Found"
-          message="Your filter criteria did not match any announcements."
+          message="Your filters did not match any records."
           icon={Filter}
         />
       );
+
     return (
       <motion.div
         className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden"
@@ -428,10 +522,23 @@ export default function TeacherAnnouncementsPage() {
                 <div
                   key={item.id}
                   className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
-                  <div className="col-span-4 font-medium text-light-slate">
-                    {item.title}
+                  <div className="col-span-4 font-medium text-light-slate flex items-center gap-2">
+                    {item.showOnDashboard &&
+                      item.showOnDashboardUntil &&
+                      !isPast(item.showOnDashboardUntil.toDate()) && (
+                        <Star
+                          size={16}
+                          className="text-yellow-400 shrink-0"
+                          title="Pinned to Dashboard"
+                        />
+                      )}
+                    <span>{item.title}</span>
                   </div>
-                  <div className="col-span-2 text-slate">{item.target}</div>
+                  <div className="col-span-2 text-slate">
+                    <span className="text-xs bg-slate-700/50 px-2 py-0.5 rounded">
+                      {item.target}
+                    </span>
+                  </div>
                   <div className="col-span-2 text-slate">
                     {item.createdAt
                       ? formatDistanceToNow(item.createdAt.toDate(), {
@@ -450,12 +557,14 @@ export default function TeacherAnnouncementsPage() {
                   <div className="col-span-1 flex justify-end gap-1">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-white/10">
+                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-white/10"
+                      title="Edit">
                       <Edit size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(item)}
-                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-white/10">
+                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-white/10"
+                      title="Delete">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -469,12 +578,7 @@ export default function TeacherAnnouncementsPage() {
   };
 
   return (
-    <>
-      <style jsx global>{`
-        .form-input {
-          @apply w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-slate-900/50 p-3 text-light-slate focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200;
-        }
-      `}</style>
+    <main>
       <AnnouncementModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -488,45 +592,65 @@ export default function TeacherAnnouncementsPage() {
         onConfirm={confirmDelete}
         title={deletingAnnouncement?.title}
       />
-      <main>
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
-              Announcements
-            </h1>
-            <p className="text-base text-slate">
-              View and publish institute-wide notices.
-            </p>
-          </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
-            <PlusCircle size={18} />
-            <span>New Announcement</span>
-          </button>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
+            Announcements
+          </h1>
+          <p className="text-base text-slate">
+            View and publish institute-wide notices.
+          </p>
         </div>
-        <AnimatePresence>
-          {announcements.length > 0 && (
-            <motion.div
-              className="flex items-center gap-4 mb-6"
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}>
-              <div className="relative w-full sm:w-64">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full form-input">
-                  <option value="all">All Statuses</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {renderContent()}
-      </main>
-    </>
+        <button
+          onClick={handleCreate}
+          className="flex items-center justify-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
+          <PlusCircle size={18} />
+          <span>New Announcement</span>
+        </button>
+      </div>
+      <AnimatePresence>
+        {announcements.length > 0 && (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}>
+            <div className="relative">
+              <select
+                onChange={(e) => handleFilterChange("status", e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select
+                onChange={(e) => handleFilterChange("target", e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
+                <option value="all">All Audiences</option>
+                {audienceOptions.map((aud) => (
+                  <option key={aud} value={aud}>
+                    {aud}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by title..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 p-3 rounded-lg border border-slate-700 bg-slate-900 text-light-slate focus:border-brand-gold"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {renderContent()}
+    </main>
   );
 }

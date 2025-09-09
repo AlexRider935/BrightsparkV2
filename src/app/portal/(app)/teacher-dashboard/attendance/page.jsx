@@ -10,7 +10,7 @@ import {
   query,
   where,
   Timestamp,
-  orderBy, // <-- FIX #1: Added the missing orderBy import
+  orderBy,
 } from "firebase/firestore";
 import {
   UserCheck,
@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Sun,
-  Briefcase, // <-- ADD THIS
+  Briefcase,
+  Info, // Added Info icon
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -38,6 +39,7 @@ import {
   isWithinInterval,
   addMonths,
   subMonths,
+  isFuture, // Import isFuture
 } from "date-fns";
 
 // --- CHILD COMPONENTS ---
@@ -73,14 +75,22 @@ const AttendanceCalendar = ({
     if (isSelected)
       return "bg-brand-gold text-dark-navy font-bold ring-2 ring-brand-gold/50";
     if (isCurrentDay) return "bg-slate-600 text-white font-semibold";
-
-    // --- NEW LOGIC: Extra class overrides holiday styles ---
     if (isExtraClass) return "bg-blue-500/20 text-blue-300 font-semibold";
 
-    if (isOfficialHoliday || isSunday)
-      return "bg-slate-700/50 text-slate-500 cursor-not-allowed";
+    // --- FIX: Updated holiday style logic ---
+    if (isOfficialHoliday || isSunday) {
+      // It's a holiday, but not an extra class day
+      if (!extraClassDays.has(dayString)) {
+        return "bg-slate-700/50 text-slate-500 hover:bg-slate-700";
+      }
+    }
+
     if (isMarked) return "bg-green-500/20 text-green-300";
+
+    // --- FIX: Added style for future dates ---
+    if (isFuture(day)) return "text-slate-500 hover:bg-slate-800";
     if (isPast(day) && !isToday(day)) return "bg-red-500/10 text-red-400";
+
     return "text-slate-300 hover:bg-slate-800";
   };
 
@@ -110,28 +120,23 @@ const AttendanceCalendar = ({
         {Array.from({ length: startingDayIndex }).map((_, i) => (
           <div key={`empty-${i}`} />
         ))}
-        {daysInMonth.map((day) => {
-          const dayString = format(day, "yyyy-MM-dd");
-          const isDisabled =
-            (getDay(day) === 0 || holidayDays.has(dayString)) &&
-            !extraClassDays.has(dayString);
-          return (
-            <button
-              key={dayString}
-              onClick={() => onDateChange(day)}
-              className={`flex items-center justify-center h-7 w-7 mx-auto text-xs rounded-full transition-colors ${getDayStyle(
-                day
-              )}`}
-              disabled={isDisabled}>
-              {format(day, "d")}
-            </button>
-          );
-        })}
+        {daysInMonth.map((day) => (
+          // --- FIX: Removed the disabled attribute to make all days clickable ---
+          <button
+            key={format(day, "yyyy-MM-dd")}
+            onClick={() => onDateChange(day)}
+            className={`flex items-center justify-center h-7 w-7 mx-auto text-xs rounded-full transition-colors ${getDayStyle(
+              day
+            )}`}>
+            {format(day, "d")}
+          </button>
+        ))}
       </div>
     </div>
   );
 };
 
+// ... (StatusBadge and StudentAttendanceRow components remain unchanged) ...
 const StatusBadge = ({ status }) => {
   const styles = {
     Present: "bg-green-500/20 text-green-300",
@@ -281,16 +286,27 @@ export default function MarkAttendancePage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [activeHoliday, setActiveHoliday] = useState(null);
-  const [activeClass, setActiveClass] = useState(null); // <-- NEW
-  const [allEventsInMonth, setAllEventsInMonth] = useState([]); // <-- NEW
+  const [activeClass, setActiveClass] = useState(null);
+  const [allEventsInMonth, setAllEventsInMonth] = useState([]);
   const [markedDays, setMarkedDays] = useState(new Set());
   const teacherName = user?.profile?.name || "Teacher";
 
+  // --- UPDATED DATE LOGIC ---
+  const isSelectedDateToday = isToday(date);
+  const isSelectedDatePast = isPast(date) && !isSelectedDateToday;
+  const isSelectedDateFuture = isFuture(date);
   const isSunday = getDay(date) === 0;
   const isOfficialHoliday = !!activeHoliday;
-  const isHoliday = (isOfficialHoliday || isSunday) && !activeClass; // <-- UPDATED LOGIC
-  const isViewMode = !isToday(date) || isLocked || isHoliday; // <-- UPDATED LOGIC
+  const isHoliday = (isOfficialHoliday || isSunday) && !activeClass;
 
+  // View mode is for ANY day that is not today, or if it's a holiday, or if attendance is locked.
+  const isViewMode =
+    isSelectedDatePast || isSelectedDateFuture || isLocked || isHoliday;
+
+  // Mark mode is ONLY for today, if it's not a holiday and not locked.
+  const isMarkMode = isSelectedDateToday && !isHoliday && !isLocked;
+
+  // ... (useEffect for batches and students remains the same) ...
   useEffect(() => {
     const qBatches = query(collection(db, "batches"), orderBy("name"));
     const unsubBatches = onSnapshot(qBatches, (snap) =>
@@ -324,6 +340,7 @@ export default function MarkAttendancePage() {
     return () => unsubStudents();
   }, [selectedBatchId, batches]);
 
+  // Main useEffect for fetching attendance data and events
   useEffect(() => {
     setLoading(true);
     if (!selectedBatchId) {
@@ -339,7 +356,6 @@ export default function MarkAttendancePage() {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
 
-    // --- UPDATED LOGIC: Fetch all relevant events, not just holidays ---
     const eventsQuery = query(
       collection(db, "events"),
       where("startDate", "<=", Timestamp.fromDate(monthEnd))
@@ -348,22 +364,28 @@ export default function MarkAttendancePage() {
       const eventsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAllEventsInMonth(eventsData);
 
-      const checkEventForDate = (type) =>
-        eventsData.find(
-          (e) =>
-            e.type === type &&
-            isWithinInterval(date, {
-              start: e.startDate.toDate(),
-              end: e.endDate ? e.endDate.toDate() : e.startDate.toDate(),
-            })
-        );
+      const todayString = format(date, "yyyy-MM-dd");
 
-      setActiveHoliday(checkEventForDate("Holiday") || null);
-      setActiveClass(
-        checkEventForDate("ExtraClass") ||
-          checkEventForDate("ExtendedClass") ||
-          null
-      );
+      const holidayEvent = eventsData.find((e) => {
+        if (e.type !== "Holiday") return false;
+        const start = e.startDate.toDate();
+        const end = e.endDate ? e.endDate.toDate() : start;
+        const startDateString = format(start, "yyyy-MM-dd");
+        const endDateString = format(end, "yyyy-MM-dd");
+        return todayString >= startDateString && todayString <= endDateString;
+      });
+
+      const classEvent = eventsData.find((e) => {
+        if (!["ExtraClass", "ExtendedClass"].includes(e.type)) return false;
+        const start = e.startDate.toDate();
+        const end = e.endDate ? e.endDate.toDate() : start;
+        const startDateString = format(start, "yyyy-MM-dd");
+        const endDateString = format(end, "yyyy-MM-dd");
+        return todayString >= startDateString && todayString <= endDateString;
+      });
+
+      setActiveHoliday(holidayEvent || null);
+      setActiveClass(classEvent || null);
     });
 
     const recordsQuery = query(
@@ -402,6 +424,7 @@ export default function MarkAttendancePage() {
     };
   }, [selectedBatchId, date]);
 
+  // ... (useMemo and handler functions remain the same) ...
   const { sortedStudents, summary, allMarked } = useMemo(() => {
     const sorted = [...students].sort((a, b) =>
       sortBy === "name"
@@ -497,8 +520,7 @@ export default function MarkAttendancePage() {
         Manage Attendance
       </h1>
       <p className="text-lg text-slate mb-8">
-        Select a batch and date. Attendance is locked on holidays and past
-        dates.
+        Select a batch and date. Attendance can only be marked for today.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -540,30 +562,25 @@ export default function MarkAttendancePage() {
           </div>
 
           <motion.div
-            key={selectedBatchId}
+            key={selectedBatchId + format(date, "yyyy-MM-dd")}
             className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}>
-            {/* --- UPDATED Banner Logic --- */}
-            {activeClass ? (
-              <div className="p-4 text-center bg-blue-900/30 rounded-t-2xl">
+            {/* --- NEW BANNER LOGIC --- */}
+            <div className="p-4 text-center bg-slate-800/80 rounded-t-2xl">
+              {activeClass ? (
                 <div className="flex items-center justify-center gap-3">
                   <Briefcase className="h-6 w-6 text-blue-400" />
                   <div>
                     <p className="font-semibold text-blue-400">
-                      {activeClass.type === "ExtraClass"
-                        ? "Extra Class"
-                        : "Extended Class"}
-                      : {activeClass.title}
+                      {activeClass.title}
                     </p>
                     <p className="text-xs text-blue-400/70">
-                      Attendance can be marked for this session.
+                      Attendance can be marked for this extra session.
                     </p>
                   </div>
                 </div>
-              </div>
-            ) : isHoliday ? (
-              <div className="p-4 text-center bg-slate-800/80 rounded-t-2xl">
+              ) : isHoliday ? (
                 <div className="flex items-center justify-center gap-3">
                   <Sun className="h-6 w-6 text-slate-400" />
                   <div>
@@ -577,51 +594,71 @@ export default function MarkAttendancePage() {
                     </p>
                   </div>
                 </div>
-              </div>
-            ) : isLocked ? (
-              <div className="p-3 text-center bg-slate-800/50 border-b border-slate-700/50 rounded-t-2xl">
+              ) : isLocked ? (
                 <p className="text-sm font-semibold text-amber-400">
                   Attendance for {format(date, "dd MMM yyyy")} is submitted and
                   locked.
                 </p>
-              </div>
-            ) : !isToday(date) ? (
-              <div className="p-3 text-center bg-slate-800/50 border-b border-slate-700/50 rounded-t-2xl">
+              ) : isSelectedDatePast ? (
                 <p className="text-sm font-semibold text-slate-400">
                   Viewing attendance for a past date.
                 </p>
-              </div>
-            ) : null}
-
-            <div className="divide-y divide-slate-700/50 min-h-[200px]">
-              {loadingRoster ? (
-                <div className="flex justify-center items-center p-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-                </div>
-              ) : sortedStudents.length > 0 ? (
-                sortedStudents.map((student, index) => (
-                  <StudentAttendanceRow
-                    key={student.id}
-                    student={student}
-                    status={attendance[student.id]}
-                    onStatusChange={handleStatusChange}
-                    isViewMode={isViewMode}
-                    serialNumber={index + 1}
-                  />
-                ))
+              ) : isSelectedDateFuture ? (
+                <p className="text-sm font-semibold text-slate-400">
+                  Cannot mark attendance for a future date.
+                </p>
               ) : (
-                <div className="p-12 text-center text-slate">
-                  <p>
-                    {selectedBatchId
-                      ? "No students found in this batch."
-                      : "Please select a batch to view the roster."}
-                  </p>
+                <div className="flex items-center justify-center gap-3">
+                  <CheckCircle className="h-6 w-6 text-green-400" />
+                  <div>
+                    <p className="font-semibold text-green-400">
+                      Ready to Mark Attendance
+                    </p>
+                    <p className="text-xs text-green-400/70">
+                      Select Present or Absent for each student below.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Show roster only if it's not a holiday and a batch is selected */}
+            {isHoliday && !activeClass ? (
+              <div className="p-12 text-center text-slate">
+                <p>No roster to display on a holiday.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-700/50 min-h-[200px]">
+                {loadingRoster ? (
+                  <div className="flex justify-center items-center p-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
+                  </div>
+                ) : sortedStudents.length > 0 ? (
+                  sortedStudents.map((student, index) => (
+                    <StudentAttendanceRow
+                      key={student.id}
+                      student={student}
+                      status={attendance[student.id]}
+                      onStatusChange={handleStatusChange}
+                      isViewMode={isViewMode} // Pass down the updated view mode
+                      serialNumber={index + 1}
+                    />
+                  ))
+                ) : (
+                  <div className="p-12 text-center text-slate">
+                    <p>
+                      {selectedBatchId
+                        ? "No students found in this batch."
+                        : "Please select a batch to view the roster."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
 
-          {selectedBatchId && students.length > 0 && !isViewMode && (
+          {/* Show submit button only when in Mark Mode */}
+          {selectedBatchId && students.length > 0 && isMarkMode && (
             <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-sm text-slate flex gap-4">
                 <span>
@@ -681,7 +718,3 @@ export default function MarkAttendancePage() {
     </div>
   );
 }
-
-
-
-

@@ -8,7 +8,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { db } from "@/firebase/config";
-import { doc, getDoc } from "firebase/firestore"; // Import getDoc
+import { doc, getDoc } from "firebase/firestore";
 
 const auth = getAuth(db.app);
 const AuthContext = createContext();
@@ -24,25 +24,50 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // User is logged in via Firebase Auth. Now, fetch their profile from Firestore.
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        const docSnap = await getDoc(userDocRef);
+        // Step 1: Always fetch the user's role from the 'users' collection first.
+        const roleDocRef = doc(db, "users", firebaseUser.uid);
+        const roleDocSnap = await getDoc(roleDocRef);
 
-        if (docSnap.exists()) {
-          // Combine Firebase Auth data with Firestore profile data
+        if (roleDocSnap.exists()) {
+          const { role } = roleDocSnap.data();
+          let profileData = {};
+
+          // Step 2: Based on the role, fetch the detailed profile.
+          // This correctly handles your hybrid data structure.
+          if (role === "admin") {
+            // For admins, the 'users' document has all the necessary info.
+            profileData = roleDocSnap.data();
+          } else {
+            // For students and teachers, we need to look in their specific collections.
+            // The collection name is the role + 's' (e.g., 'student' -> 'students').
+            const profileDocRef = doc(db, `${role}s`, firebaseUser.uid);
+            const profileDocSnap = await getDoc(profileDocRef);
+
+            if (profileDocSnap.exists()) {
+              profileData = profileDocSnap.data();
+            } else {
+              // This is a critical error if a student/teacher is missing their profile.
+              console.error(
+                `Auth Error: Role '${role}' found, but no profile document exists in '${role}s' for UID: ${firebaseUser.uid}`
+              );
+              setUser(null);
+              setLoading(false);
+              return; // Exit early
+            }
+          }
+
+          // Step 3: Combine all data into the final user object with the correct nested structure.
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            ...docSnap.data(), // This adds role, name, etc.
+            role: role,
+            profile: profileData,
           });
         } else {
-          // If no profile found, they are just a basic user.
-          // Or you could force a logout.
           console.error(
-            "No user profile found in Firestore for UID:",
-            firebaseUser.uid
+            `Auth Error: No role document found in 'users' collection for UID: ${firebaseUser.uid}`
           );
-          setUser(firebaseUser);
+          setUser(null);
         }
       } else {
         // User is logged out.

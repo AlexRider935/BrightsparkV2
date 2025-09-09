@@ -32,6 +32,7 @@ import {
   CheckCircle,
   XCircle,
   Send,
+  RefreshCw,
 } from "lucide-react";
 import { format, isPast } from "date-fns";
 
@@ -50,77 +51,26 @@ const AssignmentModal = ({
   const titleInputRef = useRef(null);
 
   useEffect(() => {
-    // This guard clause is the key fix. It checks for the fully loaded user profile.
-    if (!user?.profile?.name) {
-      // If the user object exists but the profile isn't attached yet, we just wait.
-      // The useEffect will re-run automatically when the user object is updated by the context.
-      if (user) return;
-
-      // If after a short delay the user object is still null, they are likely not logged in.
-      // We can safely stop the loader.
-      const timer = setTimeout(() => {
-        if (!user) setLoading(false);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-
-    // If we get here, it means user.profile.name is guaranteed to exist.
-    // Now we can safely set up all our listeners.
-    setLoading(true);
-    const teacherName = user.profile.name;
-
-    const qAssignments = query(
-      collection(db, "assignments"),
-      where("teacherName", "==", teacherName),
-      orderBy("dueDate", "desc")
-    );
-
-    // All listeners can now be set up safely.
-    const unsubAssignments = onSnapshot(
-      qAssignments,
-      (snap) => {
-        setAssignments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        // This setLoading(false) is crucial. It stops the spinner even if the teacher has 0 assignments.
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Error fetching assignments:", err);
-        setLoading(false); // Also called on error.
-      }
-    );
-
-    const unsubSubmissions = onSnapshot(
-      query(collectionGroup(db, "submissions")),
-      (snap) =>
-        setSubmissions(
-          snap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-            assignmentId: d.ref.parent.parent.id,
-          }))
-        )
-    );
-    const unsubBatches = onSnapshot(
-      query(collection(db, "batches"), orderBy("name")),
-      (snap) => setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const unsubSubjects = onSnapshot(
-      query(collection(db, "subjects"), orderBy("name")),
-      (snap) => setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const unsubStudents = onSnapshot(
-      query(collection(db, "students")),
-      (snap) => setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-
-    return () => {
-      unsubAssignments();
-      unsubBatches();
-      unsubSubjects();
-      unsubStudents();
-      unsubSubmissions();
+    const initialData = {
+      title: "",
+      batch: "",
+      subject: "",
+      dueDate: format(
+        new Date(new Date().setDate(new Date().getDate() + 7)),
+        "yyyy-MM-dd"
+      ),
+      instructionsLink: "",
     };
-  }, [user]); // The dependency on `user` will correctly re-run this when the profile is loaded.
+    if (assignment) {
+      setFormData({
+        ...assignment,
+        dueDate: format(assignment.dueDate.toDate(), "yyyy-MM-dd"),
+      });
+    } else {
+      setFormData(initialData);
+    }
+    if (isOpen) setTimeout(() => titleInputRef.current?.focus(), 100);
+  }, [assignment, isOpen]);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -281,6 +231,89 @@ const AssignmentModal = ({
   );
 };
 
+// --- UPDATED RESUBMIT MODAL ---
+const RequestResubmitModal = ({ isOpen, onClose, onConfirm, studentName }) => {
+  const [comments, setComments] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  const handleConfirm = async () => {
+    if (!comments.trim()) return;
+    setIsSending(true);
+    await onConfirm(comments);
+    setIsSending(false);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!isOpen) setComments("");
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      {/* FIX #2: Changed z-index to 60 to appear on top */}
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}>
+        <motion.div
+          className="relative w-full max-w-lg rounded-2xl border border-red-500/30 bg-dark-navy p-6"
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start gap-4">
+            {/* FIX #2: Using red theme */}
+            <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-900/50">
+              <AlertTriangle className="h-6 w-6 text-red-400" />
+            </div>
+            <div className="w-full">
+              <h3 className="text-lg font-bold text-white">
+                Request Resubmission for {studentName}
+              </h3>
+              <p className="mt-2 text-sm text-slate">
+                Provide required comments for the student. An email notification
+                will be sent.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <label
+              htmlFor="comments"
+              className="text-sm font-medium text-slate">
+              Comments (Required)
+            </label>
+            <textarea
+              id="comments"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={4}
+              placeholder="e.g., Please re-check question 3 and provide more detail."
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"></textarea>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!comments.trim() || isSending}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed">
+              {isSending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Send & Request Resubmission
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 const ViewSubmissionsModal = ({
   isOpen,
   onClose,
@@ -289,6 +322,8 @@ const ViewSubmissionsModal = ({
 }) => {
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+  const [isResubmitModalOpen, setIsResubmitModalOpen] = useState(false);
+  const [resubmittingSubmission, setResubmittingSubmission] = useState(null);
 
   useEffect(() => {
     if (!isOpen || !assignment) return;
@@ -325,131 +360,181 @@ const ViewSubmissionsModal = ({
     await updateDoc(subRef, { status: "Approved" });
   };
 
-  const handleResubmit = async (submissionId) => {
-    if (
-      confirm(
-        "Are you sure? This will delete the student's current submission and ask them to resubmit."
-      )
-    ) {
+  const handleResubmit = (submission) => {
+    setResubmittingSubmission(submission);
+    setIsResubmitModalOpen(true);
+  };
+
+  // FIX #1: This function now handles both the email and the deletion.
+  const confirmResubmitAndEmail = async (comments) => {
+    if (!resubmittingSubmission) return;
+
+    try {
+      const response = await fetch("/api/request-resubmission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: resubmittingSubmission.studentId,
+          studentName: resubmittingSubmission.studentName,
+          assignmentTitle: assignment.title,
+          teacherComments: comments,
+          dueDate: assignment.dueDate,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Failed to send email notification."
+        );
+      }
+
       const subRef = doc(
         db,
         "assignments",
         assignment.id,
         "submissions",
-        submissionId
+        resubmittingSubmission.id
       );
       await deleteDoc(subRef);
+    } catch (error) {
+      console.error("Error in resubmission process:", error);
+      alert("Error: " + error.message);
+    } finally {
+      setIsResubmitModalOpen(false);
+      setResubmittingSubmission(null);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={onClose}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}>
+    <>
+      <RequestResubmitModal
+        isOpen={isResubmitModalOpen}
+        onClose={() => setIsResubmitModalOpen(false)}
+        onConfirm={confirmResubmitAndEmail}
+        studentName={resubmittingSubmission?.studentName}
+      />
+      <AnimatePresence>
         <motion.div
-          onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-4xl rounded-2xl border border-white/10 bg-dark-navy/90 p-6 shadow-2xl"
-          initial={{ y: -20 }}
-          animate={{ y: 0 }}
-          exit={{ y: 20 }}>
-          <h2 className="text-xl font-bold text-brand-gold mb-1">
-            View Submissions
-          </h2>
-          <p className="text-slate mb-6">
-            {assignment.title} - {assignment.batch}
-          </p>
-          <div className="max-h-[60vh] overflow-y-auto pr-2">
-            {loadingSubmissions ? (
-              <div className="flex justify-center p-8">
-                <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-700/50">
-                {studentsInBatch.map((student) => {
-                  const submission = submissionsMap.get(student.id);
-                  const status = submission
-                    ? submission.status || "Submitted"
-                    : "Not Submitted";
-                  return (
-                    <div
-                      key={student.id}
-                      className="grid grid-cols-12 gap-4 items-center p-3">
-                      <div className="col-span-12 sm:col-span-4">
-                        <p className="font-medium text-light-slate">
-                          {student.name}
-                        </p>
-                        <p className="text-xs text-slate">
-                          Roll No: {student.rollNumber}
-                        </p>
-                      </div>
-                      <div className="col-span-12 sm:col-span-4">
-                        {status === "Approved" && (
-                          <span className="flex items-center gap-2 text-xs font-semibold text-green-400">
-                            <CheckCircle size={14} /> Approved
-                          </span>
-                        )}
-                        {status === "Submitted" && (
-                          <span className="flex items-center gap-2 text-xs font-semibold text-amber-400">
-                            <Send size={14} /> Submitted
-                          </span>
-                        )}
-                        {status === "Not Submitted" && (
-                          <span className="text-xs text-slate-500">
-                            No submission yet
-                          </span>
-                        )}
-                      </div>
-                      <div className="col-span-12 sm:col-span-4 flex justify-end gap-2">
-                        {submission?.submissionLink && (
-                          <a
-                            href={submission.submissionLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10"
-                            title="View Submission">
-                            <LinkIcon size={16} />
-                          </a>
-                        )}
-                        {status === "Submitted" && (
-                          <button
-                            onClick={() => handleApprove(submission.id)}
-                            className="p-2 text-slate-400 hover:text-green-400 rounded-md hover:bg-green-400/10"
-                            title="Approve">
-                            <CheckCircle size={16} />
-                          </button>
-                        )}
-                        {status !== "Not Submitted" && (
-                          <button
-                            onClick={() => handleResubmit(submission.id)}
-                            className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10"
-                            title="Ask to Resubmit">
-                            <XCircle size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-3 pt-6 border-t border-slate-700/50">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
-              Close
-            </button>
-          </div>
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}>
+          <motion.div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-5xl rounded-2xl border border-white/10 bg-dark-navy/90 p-6 shadow-2xl"
+            initial={{ y: -20 }}
+            animate={{ y: 0 }}
+            exit={{ y: 20 }}>
+            <h2 className="text-xl font-bold text-brand-gold mb-1">
+              Submissions for: {assignment.title}
+            </h2>
+            <p className="text-slate mb-6">Batch: {assignment.batch}</p>
+            <div className="max-h-[60vh] overflow-y-auto pr-2">
+              {loadingSubmissions ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
+                </div>
+              ) : (
+                <div className="border border-slate-700/50 rounded-lg">
+                  <div className="grid grid-cols-12 gap-4 p-3 bg-slate-800/50 rounded-t-lg font-semibold text-xs text-slate-300 uppercase">
+                    <div className="col-span-4">Student</div>
+                    <div className="col-span-2">Status</div>
+                    <div className="col-span-2">Submitted At</div>
+                    <div className="col-span-4 text-right">Actions</div>
+                  </div>
+                  <div className="divide-y divide-slate-700/50">
+                    {studentsInBatch.map((student) => {
+                      const submission = submissionsMap.get(student.id);
+                      const status = submission
+                        ? submission.status || "Submitted"
+                        : "Not Submitted";
+                      return (
+                        <div
+                          key={student.id}
+                          className="grid grid-cols-12 gap-4 items-center p-3 text-sm">
+                          <div className="col-span-4">
+                            <p className="font-medium text-light-slate">
+                              {student.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Roll: {student.rollNumber}
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            {status === "Approved" && (
+                              <span className="flex items-center gap-2 text-xs font-semibold text-green-400">
+                                <CheckCircle size={14} /> Approved
+                              </span>
+                            )}
+                            {status === "Submitted" && (
+                              <span className="flex items-center gap-2 text-xs font-semibold text-amber-400">
+                                <Send size={14} /> Submitted
+                              </span>
+                            )}
+                            {status === "Not Submitted" && (
+                              <span className="text-xs text-slate-500">—</span>
+                            )}
+                          </div>
+                          <div className="col-span-2 text-xs text-slate-400">
+                            {submission?.submittedAt
+                              ? format(
+                                  submission.submittedAt.toDate(),
+                                  "dd MMM, hh:mm a"
+                                )
+                              : "—"}
+                          </div>
+                          <div className="col-span-4 flex justify-end gap-2">
+                            {submission ? (
+                              <>
+                                <a
+                                  href={submission.submissionLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-700/80 text-slate-300 hover:bg-slate-700">
+                                  <LinkIcon size={14} /> View Link
+                                </a>
+                                {status === "Submitted" && (
+                                  <button
+                                    onClick={() => handleApprove(submission.id)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-green-500/20 text-green-300 hover:bg-green-500/30">
+                                    <CheckCircle size={14} /> Approve
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleResubmit(submission)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                  <RefreshCw size={14} /> Resubmit
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-600 pr-2">
+                                No actions available
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 pt-6 mt-4 border-t border-slate-700/50">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+                Close
+              </button>
+            </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 };
 
@@ -522,67 +607,63 @@ export default function TeacherAssignmentsPage() {
   const [viewingAssignment, setViewingAssignment] = useState(null);
 
   useEffect(() => {
-    // --- FIX: Correctly wait for the user profile to load ---
-    if (!user?.profile?.name) {
-      if (user) return; // Profile is still loading, wait for the next run
-      const timer = setTimeout(() => {
-        if (!user) setLoading(false);
-      }, 2500);
-      return () => clearTimeout(timer);
+    if (user === null) {
+      setLoading(false);
+      setAssignments([]);
+      setSubmissions([]);
+      return;
     }
+    if (user?.profile?.name) {
+      const teacherName = user.profile.name;
+      const qAssignments = query(
+        collection(db, "assignments"),
+        where("teacherName", "==", teacherName),
+        orderBy("dueDate", "desc")
+      );
+      const unsubAssignments = onSnapshot(
+        qAssignments,
+        (snap) => {
+          setAssignments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          setLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching assignments:", err);
+          setLoading(false);
+        }
+      );
 
-    setLoading(true);
-    const teacherName = user.profile.name;
+      const unsubSubmissions = onSnapshot(
+        query(collectionGroup(db, "submissions")),
+        (snap) =>
+          setSubmissions(
+            snap.docs.map((d) => ({
+              id: d.id,
+              ...d.data(),
+              assignmentId: d.ref.parent.parent.id,
+            }))
+          )
+      );
+      const unsubBatches = onSnapshot(
+        query(collection(db, "batches"), orderBy("name")),
+        (snap) => setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
+      const unsubSubjects = onSnapshot(
+        query(collection(db, "subjects"), orderBy("name")),
+        (snap) => setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
+      const unsubStudents = onSnapshot(
+        query(collection(db, "students")),
+        (snap) => setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      );
 
-    // --- FIX: Query now correctly uses the real teacher's name ---
-    const qAssignments = query(
-      collection(db, "assignments"),
-      where("teacherName", "==", teacherName),
-      orderBy("dueDate", "desc")
-    );
-    const unsubAssignments = onSnapshot(
-      qAssignments,
-      (snap) => {
-        setAssignments(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false); // Stop loading once assignments are fetched
-      },
-      (err) => {
-        console.error("Error fetching assignments:", err);
-        setLoading(false);
-      }
-    );
-
-    const unsubSubmissions = onSnapshot(
-      query(collectionGroup(db, "submissions")),
-      (snap) =>
-        setSubmissions(
-          snap.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-            assignmentId: d.ref.parent.parent.id,
-          }))
-        )
-    );
-    const unsubBatches = onSnapshot(
-      query(collection(db, "batches"), orderBy("name")),
-      (snap) => setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const unsubSubjects = onSnapshot(
-      query(collection(db, "subjects"), orderBy("name")),
-      (snap) => setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-    const unsubStudents = onSnapshot(
-      query(collection(db, "students")),
-      (snap) => setStudents(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-    );
-
-    return () => {
-      unsubAssignments();
-      unsubBatches();
-      unsubSubjects();
-      unsubStudents();
-      unsubSubmissions();
-    };
+      return () => {
+        unsubAssignments();
+        unsubBatches();
+        unsubSubjects();
+        unsubStudents();
+        unsubSubmissions();
+      };
+    }
   }, [user]);
 
   const { activeAssignments, pastAssignments } = useMemo(() => {
@@ -642,7 +723,6 @@ export default function TeacherAssignmentsPage() {
   };
   const confirmDelete = async () => {
     if (deletingAssignment) {
-      // For production, a Cloud Function is better for deleting subcollections.
       await deleteDoc(doc(db, "assignments", deletingAssignment.id));
       setIsDeleteModalOpen(false);
       setDeletingAssignment(null);
@@ -663,7 +743,10 @@ export default function TeacherAssignmentsPage() {
   };
 
   const studentsForViewing = useMemo(
-    () => students.filter((s) => s.batch === viewingAssignment?.batch),
+    () =>
+      students
+        .filter((s) => s.batch === viewingAssignment?.batch)
+        .sort((a, b) => a.rollNumber - b.rollNumber),
     [students, viewingAssignment]
   );
 
@@ -743,13 +826,13 @@ export default function TeacherAssignmentsPage() {
             <div className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <div className="min-w-full">
+                  {/* --- FIX #3: UPDATED TABLE HEADER --- */}
                   <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase tracking-wider">
                     <div className="col-span-12 md:col-span-4">Assignment</div>
-                    <div className="col-span-6 md:col-span-2">
-                      Batch & Subject
-                    </div>
-                    <div className="col-span-6 md:col-span-2">Due Date</div>
-                    <div className="col-span-6 md:col-span-2">Submissions</div>
+                    <div className="col-span-6 md:col-span-2">Batch</div>
+                    <div className="col-span-6 md:col-span-2">Subject</div>
+                    <div className="col-span-6 md:col-span-1">Due Date</div>
+                    <div className="col-span-6 md:col-span-1">Submissions</div>
                     <div className="col-span-6 md:col-span-2 text-right">
                       Actions
                     </div>
@@ -765,6 +848,7 @@ export default function TeacherAssignmentsPage() {
                             )
                           : 0;
                       return (
+                        // --- FIX #3: UPDATED TABLE ROW ---
                         <div
                           key={assignment.id}
                           className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
@@ -775,33 +859,21 @@ export default function TeacherAssignmentsPage() {
                             <p className="text-xs bg-slate-700/50 px-2 py-0.5 rounded inline-block">
                               {assignment.batch}
                             </p>
-                            <p className="text-xs text-slate-400 mt-1">
-                              {assignment.subject}
-                            </p>
                           </div>
                           <div className="col-span-6 md:col-span-2 text-slate-400">
+                            {assignment.subject}
+                          </div>
+                          <div className="col-span-6 md:col-span-1 text-slate-400">
                             {format(
                               assignment.dueDate.toDate(),
                               "MMM dd, yyyy"
                             )}
                           </div>
-                          <div className="col-span-12 md:col-span-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-full bg-slate-700 rounded-full h-1.5">
-                                <div
-                                  className="bg-brand-gold h-1.5 rounded-full"
-                                  style={{
-                                    width: `${submissionPercentage}%`,
-                                  }}></div>
-                              </div>
-                              <span className="text-xs font-mono text-slate-400">
-                                {submissionPercentage}%
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">
-                              {assignment.submissionCount} of{" "}
-                              {assignment.totalStudents} submitted
-                            </p>
+                          <div className="col-span-6 md:col-span-1">
+                            <span className="text-xs font-mono text-slate-400">
+                              {assignment.submissionCount} /{" "}
+                              {assignment.totalStudents}
+                            </span>
                           </div>
                           <div className="col-span-12 md:col-span-2 flex justify-end gap-1">
                             <button
