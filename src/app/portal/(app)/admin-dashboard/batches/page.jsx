@@ -13,7 +13,6 @@ import {
   query,
   orderBy,
   Timestamp,
-  where,
 } from "firebase/firestore";
 import {
   School,
@@ -25,17 +24,14 @@ import {
   Loader2,
   AlertTriangle,
   X,
-  BookOpen,
   Check,
-  GraduationCap,
-  ChevronDown
+  ChevronDown,
+  IndianRupee, // Added Rupee Icon
 } from "lucide-react";
 
-// --- STATIC DATA ---
+// --- STATIC DATA & HELPERS (No changes) ---
 const classLevels = ["IV", "V", "VI", "VII", "VIII", "IX", "X"];
 const statusOptions = ["Upcoming", "Active", "Full", "Completed"];
-
-// --- HELPER & UI COMPONENTS ---
 
 const StatusBadge = ({ status }) => {
   const styles = useMemo(
@@ -126,6 +122,7 @@ const CustomCheckbox = ({ id, label, value, checked, onChange }) => (
   </label>
 );
 
+// --- UPDATED: BatchModal now includes totalCourseFee ---
 const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
   const [formData, setFormData] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -139,6 +136,7 @@ const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
       subjects: [],
       capacity: 12,
       status: "Upcoming",
+      totalCourseFee: "", // Added field
     };
     setFormData(
       batch
@@ -162,7 +160,12 @@ const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
-    await onSave({ ...formData, capacity: Number(formData.capacity) });
+    // Ensure numbers are saved as numbers
+    await onSave({
+      ...formData,
+      capacity: Number(formData.capacity),
+      totalCourseFee: Number(formData.totalCourseFee),
+    });
     setIsSaving(false);
     onClose();
   };
@@ -231,7 +234,48 @@ const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
                 <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+
+            {/* --- UPDATED: Grouped Fee and Capacity --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-700/50 pt-6">
+              <div>
+                <label
+                  htmlFor="totalCourseFee"
+                  className="block text-sm font-medium text-slate mb-2">
+                  Total Course Fee (₹)
+                </label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    id="totalCourseFee"
+                    name="totalCourseFee"
+                    type="number"
+                    placeholder="e.g. 26500"
+                    value={formData.totalCourseFee || ""}
+                    onChange={handleChange}
+                    required
+                    className={`${formInputClasses} pl-9`}
+                  />
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="capacity"
+                  className="block text-sm font-medium text-slate mb-2">
+                  Capacity
+                </label>
+                <input
+                  id="capacity"
+                  name="capacity"
+                  type="number"
+                  value={formData.capacity || ""}
+                  onChange={handleChange}
+                  required
+                  className={formInputClasses}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="relative">
                 <label
                   htmlFor="classLevel"
@@ -255,22 +299,6 @@ const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
                   ))}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
-              </div>
-              <div>
-                <label
-                  htmlFor="capacity"
-                  className="block text-sm font-medium text-slate mb-2">
-                  Capacity
-                </label>
-                <input
-                  id="capacity"
-                  name="capacity"
-                  type="number"
-                  value={formData.capacity || ""}
-                  onChange={handleChange}
-                  required
-                  className={formInputClasses}
-                />
               </div>
               <div className="relative">
                 <label
@@ -351,45 +379,51 @@ const BatchModal = ({ isOpen, onClose, onSave, batch, teachers, subjects }) => {
   );
 };
 
+// ... (ConfirmDeleteModal and EmptyState components remain the same) ...
 const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, batchName }) => {
   if (!isOpen) return null;
   return (
     <AnimatePresence>
+      {" "}
       <motion.div
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={onClose}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}>
+        {" "}
         <motion.div
           className="relative w-full max-w-md rounded-2xl border border-red-500/30 bg-dark-navy p-6 text-center"
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}>
+          {" "}
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
-            <AlertTriangle className="h-6 w-6 text-red-400" />
-          </div>
-          <h3 className="mt-4 text-lg font-bold text-white">Delete Batch</h3>
+            {" "}
+            <AlertTriangle className="h-6 w-6 text-red-400" />{" "}
+          </div>{" "}
+          <h3 className="mt-4 text-lg font-bold text-white">Delete Batch</h3>{" "}
           <p className="mt-2 text-sm text-slate">
             Are you sure you want to delete{" "}
             <span className="font-bold text-light-slate">"{batchName}"</span>?
             This is permanent.
-          </p>
+          </p>{" "}
           <div className="mt-6 flex justify-center gap-3">
+            {" "}
             <button
               onClick={onClose}
               className="w-full px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
               Cancel
-            </button>
+            </button>{" "}
             <button
               onClick={onConfirm}
               className="w-full px-4 py-2 text-sm font-bold rounded-md bg-red-600 text-white hover:bg-red-700">
               Confirm Delete
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
+            </button>{" "}
+          </div>{" "}
+        </motion.div>{" "}
+      </motion.div>{" "}
     </AnimatePresence>
   );
 };
@@ -399,10 +433,24 @@ const EmptyState = ({
   message,
   buttonText,
   icon: Icon = School,
-}) => {
-  /* ... Full JSX from previous responses ... */
-};
+}) => (
+  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10 col-span-full">
+    {" "}
+    <Icon className="mx-auto h-12 w-12 text-slate-500" />{" "}
+    <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>{" "}
+    <p className="mt-2 text-sm text-slate">{message}</p>{" "}
+    {onAction && buttonText && (
+      <button
+        onClick={onAction}
+        className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
+        {" "}
+        <PlusCircle size={18} /> <span>{buttonText}</span>{" "}
+      </button>
+    )}{" "}
+  </div>
+);
 
+// --- UPDATED: BatchCard now displays the totalCourseFee ---
 const BatchCard = ({ batch, teacher, onEdit, onDelete }) => (
   <motion.div
     className="rounded-2xl border border-white/10 bg-slate-900/30 p-5 flex flex-col justify-between backdrop-blur-sm transition-all hover:border-white/20 hover:bg-slate-900/50"
@@ -449,6 +497,17 @@ const BatchCard = ({ batch, teacher, onEdit, onDelete }) => (
             </span>
           </div>
         </div>
+        {/* --- NEW: Display Course Fee --- */}
+        <div className="text-sm text-slate-300">
+          <p className="flex items-center gap-2 mb-1 text-xs text-slate-500">
+            <IndianRupee size={14} /> Course Fee
+          </p>
+          <span className="font-semibold text-light-slate text-base">
+            {batch.totalCourseFee
+              ? `₹${batch.totalCourseFee.toLocaleString("en-IN")}`
+              : "Not Set"}
+          </span>
+        </div>
       </div>
     </div>
     <div className="mt-5 flex justify-end items-center gap-2">
@@ -466,6 +525,7 @@ const BatchCard = ({ batch, teacher, onEdit, onDelete }) => (
   </motion.div>
 );
 
+// ... (Main page component remains the same) ...
 export default function ManageBatchesPage() {
   const [batches, setBatches] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -495,8 +555,6 @@ export default function ManageBatchesPage() {
       query(collection(db, "subjects"), orderBy("name")),
       (snap) => setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
-
-    // Live listener for student enrollments
     const unsubStudents = onSnapshot(
       query(collection(db, "students")),
       (snap) => {
@@ -510,7 +568,6 @@ export default function ManageBatchesPage() {
         setStudentCounts(counts);
       }
     );
-
     return () => {
       unsubBatches();
       unsubTeachers();
@@ -527,7 +584,6 @@ export default function ManageBatchesPage() {
       })),
     [batches, studentCounts]
   );
-
   const filteredBatches = useMemo(
     () =>
       batchesWithCounts.filter(
@@ -599,9 +655,9 @@ export default function ManageBatchesPage() {
           icon={Search}
         />
       );
-
     return (
       <AnimatePresence>
+        {" "}
         {filteredBatches.map((batch) => {
           const teacherInfo = teachers.find((t) => t.name === batch.teacher);
           return (
@@ -613,7 +669,7 @@ export default function ManageBatchesPage() {
               onDelete={handleDelete}
             />
           );
-        })}
+        })}{" "}
       </AnimatePresence>
     );
   };
