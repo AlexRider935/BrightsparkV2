@@ -1,3 +1,4 @@
+// src/app/portal/(app)/admin-dashboard/expenses/page.jsx
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -17,8 +18,6 @@ import {
 import {
   Banknote,
   PlusCircle,
-  CheckCircle,
-  Clock,
   Send,
   X,
   Loader2,
@@ -88,23 +87,66 @@ const ConfirmDeleteModal = ({
   onConfirm,
   expenseDescription,
 }) => {
-  /* ... Full JSX from previous responses ... */
+  if (!isOpen) return null;
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 20, opacity: 0 }}
+          className="relative w-full max-w-md rounded-2xl border border-red-500/30 bg-dark-navy p-6">
+          <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-center text-white">
+            Confirm Deletion
+          </h2>
+          <p className="text-center text-slate-400 mt-2">
+            Are you sure you want to permanently delete the expense for "
+            {expenseDescription}"? This action cannot be undone.
+          </p>
+          <div className="flex justify-center gap-4 mt-6">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-6 py-2.5 text-sm font-bold rounded-md bg-red-600 text-white hover:bg-red-500">
+              Delete
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
 };
+
 const EmptyState = ({
   onAction,
   title,
   message,
   buttonText,
   icon: Icon = Banknote,
-}) => {
-  /* ... Full JSX from previous responses ... */
-};
+}) => (
+  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10">
+    <Icon className="mx-auto h-12 w-12 text-slate-500" />
+    <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
+    <p className="mt-2 text-sm text-slate">{message}</p>
+    <div className="mt-6">
+      <button
+        onClick={onAction}
+        className="flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
+        <PlusCircle size={18} />
+        <span>{buttonText}</span>
+      </button>
+    </div>
+  </div>
+);
 
 const ExpenseModal = ({ isOpen, onClose, onSave, teachers, expense }) => {
   const [formData, setFormData] = useState({});
   const [isSaving, setIsSaving] = useState(false);
-  const categorySelectRef = useRef(null);
-
   useEffect(() => {
     const initialData = {
       category: "Payroll",
@@ -127,7 +169,6 @@ const ExpenseModal = ({ isOpen, onClose, onSave, teachers, expense }) => {
         .toISOString()
         .split("T")[0];
     setFormData(dataToSet);
-    if (isOpen) setTimeout(() => categorySelectRef.current?.focus(), 100);
   }, [isOpen, expense]);
 
   const handleChange = (e) => {
@@ -179,7 +220,6 @@ const ExpenseModal = ({ isOpen, onClose, onSave, teachers, expense }) => {
                 Category
               </label>
               <select
-                ref={categorySelectRef}
                 name="category"
                 value={formData.category || ""}
                 onChange={handleChange}
@@ -218,7 +258,7 @@ const ExpenseModal = ({ isOpen, onClose, onSave, teachers, expense }) => {
                       </option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.name} ({t.employeeId})
+                          {t.name}
                         </option>
                       ))}
                     </select>
@@ -313,6 +353,7 @@ export default function ExpenseManagementPage() {
   const [editingExpense, setEditingExpense] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingExpense, setDeletingExpense] = useState(null);
+  const [isSendingReport, setIsSendingReport] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -337,7 +378,7 @@ export default function ExpenseManagementPage() {
     };
   }, []);
 
-  const { expensesForMonth, stats } = useMemo(() => {
+  const { expensesForMonth, totalExpenses } = useMemo(() => {
     const selectedDate = new Date(`${selectedMonth}-02`);
     const monthStart = startOfMonth(selectedDate);
     const monthEnd = endOfMonth(selectedDate);
@@ -349,10 +390,7 @@ export default function ExpenseManagementPage() {
       (sum, item) => sum + Number(item.amount),
       0
     );
-    const paid = expensesForMonth
-      .filter((i) => i.status === "Paid")
-      .reduce((sum, i) => sum + Number(i.amount), 0);
-    return { expensesForMonth, stats: { total, paid, pending: total - paid } };
+    return { expensesForMonth, totalExpenses: total };
   }, [selectedMonth, allExpenses]);
 
   const monthOptions = useMemo(
@@ -368,35 +406,27 @@ export default function ExpenseManagementPage() {
   );
 
   const handleSave = async (formData) => {
-    try {
-      const dataToSave = {
-        ...formData,
-        amount: Number(formData.amount),
-        expenseDate: Timestamp.fromDate(new Date(formData.expenseDate)),
-        updatedAt: Timestamp.now(),
-      };
-      if (editingExpense) {
-        await updateDoc(doc(db, "expenses", editingExpense.id), dataToSave);
-      } else {
-        await addDoc(collection(db, "expenses"), {
-          ...dataToSave,
-          createdAt: Timestamp.now(),
-        });
-      }
-    } catch (error) {
-      console.error("Error saving expense:", error);
+    const dataToSave = {
+      ...formData,
+      amount: Number(formData.amount),
+      expenseDate: Timestamp.fromDate(new Date(formData.expenseDate)),
+      updatedAt: Timestamp.now(),
+    };
+    if (editingExpense) {
+      await updateDoc(doc(db, "expenses", editingExpense.id), dataToSave);
+    } else {
+      await addDoc(collection(db, "expenses"), {
+        ...dataToSave,
+        createdAt: Timestamp.now(),
+      });
     }
   };
 
   const markAsPaid = async (expenseId) => {
-    try {
-      await updateDoc(doc(db, "expenses", expenseId), {
-        status: "Paid",
-        paymentDate: Timestamp.now(),
-      });
-    } catch (error) {
-      console.error("Error marking as paid:", error);
-    }
+    await updateDoc(doc(db, "expenses", expenseId), {
+      status: "Paid",
+      paymentDate: Timestamp.now(),
+    });
   };
   const handleEdit = (expense) => {
     setEditingExpense(expense);
@@ -418,6 +448,28 @@ export default function ExpenseManagementPage() {
     }
   };
 
+  const handleSendReport = async () => {
+    const confirmSend = confirm(
+      "This will send an email summary of the PREVIOUS month's expenses to all admins. Do you want to continue?"
+    );
+    if (!confirmSend) return;
+
+    setIsSendingReport(true);
+    try {
+      const response = await fetch("/api/send-expense-report", {
+        method: "POST",
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      alert(result.message);
+    } catch (error) {
+      console.error("Failed to send report:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsSendingReport(false);
+    }
+  };
+
   return (
     <main>
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
@@ -426,18 +478,34 @@ export default function ExpenseManagementPage() {
             Expense Management
           </h1>
           <p className="text-base text-slate">
-            Track all institute expenses, including payroll.
+            Track all institute expenses and generate monthly reports.
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
-          <PlusCircle size={18} />
-          <span>Add New Expense</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSendReport}
+            disabled={isSendingReport}
+            className="flex items-center gap-2 rounded-lg bg-slate-700 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-600 disabled:opacity-50 shrink-0">
+            {isSendingReport ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Send size={18} />
+            )}
+            <span>
+              {isSendingReport ? "Sending..." : "Send Last Month's Report"}
+            </span>
+          </button>
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400 shrink-0">
+            <PlusCircle size={18} />
+            <span>Add New Expense</span>
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-        <div className="lg:col-span-1 rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
           <label className="text-md font-medium text-slate mb-2 block">
             Select Month
           </label>
@@ -455,24 +523,13 @@ export default function ExpenseManagementPage() {
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
           </div>
         </div>
-        <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <StatCard
-            title="Total Expenses"
-            value={`₹${stats.total.toLocaleString("en-IN")}`}
-            Icon={Banknote}
-          />
-          <StatCard
-            title="Amount Paid"
-            value={`₹${stats.paid.toLocaleString("en-IN")}`}
-            Icon={CheckCircle}
-          />
-          <StatCard
-            title="Amount Pending"
-            value={`₹${stats.pending.toLocaleString("en-IN")}`}
-            Icon={Clock}
-          />
-        </div>
+        <StatCard
+          title="Total Expenses for Month"
+          value={`₹${totalExpenses.toLocaleString("en-IN")}`}
+          Icon={Banknote}
+        />
       </div>
+
       {loading ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />

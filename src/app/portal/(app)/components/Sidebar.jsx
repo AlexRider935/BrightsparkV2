@@ -1,3 +1,4 @@
+// src/app/portal/(app)/components/Sidebar.jsx
 "use client";
 
 import Link from "next/link";
@@ -34,12 +35,10 @@ import {
   MessageCircle,
   BarChart2,
   GitBranch,
-  UserCircle,
 } from "lucide-react";
 
 // --- STUDENT NAV ITEMS ---
 const studentNavItems = [
-  // ... (no changes here)
   {
     href: "/portal/student-dashboard",
     label: "Dashboard",
@@ -100,7 +99,7 @@ const studentNavItems = [
   },
 ];
 
-// --- TEACHER NAV ITEMS (Updated) ---
+// --- TEACHER NAV ITEMS ---
 const teacherNavItems = [
   {
     href: "/portal/teacher-dashboard",
@@ -144,7 +143,6 @@ const teacherNavItems = [
     label: "Manage Gallery",
     Icon: ImageIcon,
   },
-  // --- ADD THIS LINE FOR TEACHERS ---
   {
     href: "/portal/teacher-dashboard/events",
     label: "Manage Events",
@@ -159,13 +157,15 @@ const teacherNavItems = [
   },
 ];
 
-// --- ADMIN NAV ITEMS (Updated) ---
+// --- ADMIN NAV ITEMS (MERGED WITH TEACHER ITEMS) ---
 const adminNavItems = [
   {
     href: "/portal/admin-dashboard",
     label: "Dashboard",
     Icon: LayoutDashboard,
   },
+
+  // SECTION: Institute Management
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/batches",
@@ -185,13 +185,38 @@ const adminNavItems = [
   {
     href: "/portal/admin-dashboard/teachers",
     label: "Manage Teachers",
-    Icon: UserCircle,
+    Icon: User,
   },
   {
     href: "/portal/admin-dashboard/admissions",
     label: "Admissions",
     Icon: UserPlus,
   },
+
+  // SECTION: Academic Management (from Teacher)
+  { type: "divider" },
+  {
+    href: "/portal/admin-dashboard/attendance",
+    label: "Mark Attendance",
+    Icon: UserCheck,
+  },
+  {
+    href: "/portal/admin-dashboard/assignments",
+    label: "Assignments",
+    Icon: ClipboardList,
+  },
+  {
+    href: "/portal/admin-dashboard/grades",
+    label: "Gradebook",
+    Icon: BookMarked,
+  },
+  {
+    href: "/portal/admin-dashboard/materials",
+    label: "Study Materials",
+    Icon: FolderUp,
+  },
+
+  // SECTION: Communications
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/announcements",
@@ -199,21 +224,17 @@ const adminNavItems = [
     Icon: Megaphone,
   },
   {
-    href: "/portal/admin-dashboard/materials",
-    label: "Study Materials",
-    Icon: FolderUp,
-  },
-  {
     href: "/portal/admin-dashboard/gallery",
     label: "Gallery",
     Icon: ImageIcon,
   },
-  // --- ADD THIS LINE FOR ADMINS ---
   {
     href: "/portal/admin-dashboard/events",
     label: "Manage Events",
     Icon: CalendarDays,
   },
+
+  // SECTION: Financial
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/fees",
@@ -221,10 +242,12 @@ const adminNavItems = [
     Icon: IndianRupee,
   },
   {
-    href: "/portal/admin-dashboard/payroll",
+    href: "/portal/admin-dashboard/expenses",
     label: "Expenses",
     Icon: Banknote,
   },
+
+  // SECTION: Website CMS
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/edit-homepage",
@@ -236,11 +259,8 @@ const adminNavItems = [
     label: "Edit About Page",
     Icon: PenSquare,
   },
-  {
-    href: "/portal/admin-dashboard/testimonials",
-    label: "Testimonials",
-    Icon: MessageCircle,
-  },
+
+  // SECTION: System & Profile
   { type: "divider" },
   {
     href: "/portal/admin-dashboard/analytics",
@@ -314,13 +334,13 @@ export default function Sidebar() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="h-9 w-9 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold font-bold shrink-0">
-                  {user.name
-                    ? user.name.charAt(0).toUpperCase()
+                  {user.firstName
+                    ? user.firstName.charAt(0).toUpperCase()
                     : user.email.charAt(0).toUpperCase()}
                 </div>
                 <div className="overflow-hidden">
                   <p className="text-sm font-semibold text-white truncate">
-                    {user.name || user.email}
+                    {user.firstName || user.name || user.email}
                   </p>
                   <p className="text-xs text-slate capitalize">{user.role}</p>
                 </div>

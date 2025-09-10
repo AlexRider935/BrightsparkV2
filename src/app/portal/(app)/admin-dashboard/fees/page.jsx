@@ -1,3 +1,4 @@
+// src/app/portal/(app)/admin-dashboard/fees/page.jsx
 "use client";
 
 import { useState, useMemo, useEffect, Fragment } from "react";
@@ -11,45 +12,33 @@ import {
   query,
   orderBy,
   Timestamp,
-  writeBatch,
-  addDoc,
 } from "firebase/firestore";
 import {
   IndianRupee,
   Clock,
   Search,
   ChevronDown,
-  X,
   Loader2,
   Save,
-  Users,
   BarChart,
   CheckCircle,
-  FileText,
   ChevronLeft,
   ChevronRight,
-  AlertTriangle,
+  Settings,
 } from "lucide-react";
 import {
   format,
   addMonths,
+  subMonths,
   startOfMonth,
   endOfMonth,
   isWithinInterval,
-  startOfDay,
   isPast,
   isToday,
 } from "date-fns";
+import FeeStructureEditor from "./components/FeeStructureEditor";
 
-// --- CONFIGURATION FOR PAYMENT PLANS ---
-const PAYMENT_PLANS = {
-  "one-time": { name: "One time payment", discount: 1500 },
-  "two-installments": { name: "Two installments", discount: 500 },
-  "three-installments": { name: "Three installments", discount: 0 },
-  "per-month": { name: "Per Month", monthlyAmount: 2500, totalMonths: 11 },
-};
-
-// --- REUSABLE HELPER COMPONENTS (No changes) ---
+// --- HELPER & MODAL COMPONENTS ---
 
 const StatCard = ({ title, value, Icon }) => (
   <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
@@ -211,7 +200,7 @@ const CollectInstallmentModal = ({
                 type="submit"
                 disabled={isSaving}
                 className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{" "}
                 Confirm Payment
               </button>
             </div>
@@ -222,18 +211,22 @@ const CollectInstallmentModal = ({
   );
 };
 
-// --- FEE STRUCTURE VIEW COMPONENT (No changes) ---
-const FeeStructureView = ({ students, batches, feeDetails, onSavePlan }) => {
+// --- UPDATED COMPONENT FOR ASSIGNING PLANS ---
+const AssignPlanView = ({ students, feeStructures, onSavePlan }) => {
   const [editingPlan, setEditingPlan] = useState({});
 
-  const handlePlanChange = (studentId, plan) => {
-    setEditingPlan((prev) => ({ ...prev, [studentId]: plan }));
+  const handlePlanChange = (studentId, planId) => {
+    setEditingPlan((prev) => ({ ...prev, [studentId]: planId }));
   };
 
   const handleSave = (studentId) => {
-    const plan = editingPlan[studentId];
+    const planId = editingPlan[studentId];
+    const student = students.find((s) => s.id === studentId);
+    const structure = feeStructures.find((fs) => fs.id === student.batchId);
+    const plan = structure?.plans.find((p) => p.id === planId);
+
     if (plan) {
-      onSavePlan(studentId, plan);
+      onSavePlan(studentId, plan); // Pass the entire plan object
       setEditingPlan((prev) => {
         const newState = { ...prev };
         delete newState[studentId];
@@ -242,56 +235,54 @@ const FeeStructureView = ({ students, batches, feeDetails, onSavePlan }) => {
     }
   };
 
-  const batchFeeMap = new Map(
-    batches.map((b) => [b.name, b.totalCourseFee || 0])
-  );
-  const feeDetailMap = new Map(feeDetails.map((d) => [d.id, d]));
-
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg overflow-hidden">
       <div className="overflow-x-auto">
         <div className="min-w-full">
           <div className="grid grid-cols-10 gap-4 p-4 border-b border-slate-700/50 text-xs font-semibold text-slate uppercase">
-            <div className="col-span-3">Student</div>
-            <div className="col-span-2">Total Course Fee</div>
-            <div className="col-span-3">Payment Plan</div>
+            <div className="col-span-4">Student</div>
+            <div className="col-span-4">Payment Plan</div>
             <div className="col-span-2">Total Payable</div>
           </div>
           <div className="divide-y divide-slate-800">
             {students.map((s) => {
-              const baseFee = batchFeeMap.get(s.batch) || 0;
-              const studentFeeDetail = feeDetailMap.get(s.id);
+              const structure = feeStructures.find((fs) => fs.id === s.batchId);
+              const selectedPlanId =
+                editingPlan[s.id] || s.feeDetail?.selectedPlanId;
+              const selectedPlan = structure?.plans.find(
+                (p) => p.id === selectedPlanId
+              );
               const isEditing = !!editingPlan[s.id];
-              const selectedPlanKey =
-                editingPlan[s.id] || studentFeeDetail?.selectedPlan;
-              const planDetails = PAYMENT_PLANS[selectedPlanKey];
-              const totalPayable =
-                selectedPlanKey === "per-month" && planDetails
-                  ? planDetails.monthlyAmount * planDetails.totalMonths
-                  : baseFee - (planDetails?.discount || 0);
+
+              // NEW LOGIC: Total payable is the sum of all installments in the selected plan
+              let totalPayable = "N/A";
+              if (selectedPlan && selectedPlan.installments) {
+                totalPayable = selectedPlan.installments.reduce(
+                  (sum, inst) => sum + inst.amount,
+                  0
+                );
+              }
 
               return (
                 <div
                   key={s.id}
                   className="grid grid-cols-10 gap-4 items-center p-3 text-sm">
-                  <div className="col-span-3">
+                  <div className="col-span-4">
                     <p className="font-medium text-light-slate">{s.name}</p>
                     <p className="text-xs text-slate-400">{s.batch}</p>
                   </div>
-                  <div className="col-span-2 text-slate-300">
-                    ₹{baseFee.toLocaleString("en-IN")}
-                  </div>
-                  <div className="col-span-3 flex items-center gap-2">
+                  <div className="col-span-4 flex items-center gap-2">
                     <select
-                      value={selectedPlanKey || ""}
+                      value={selectedPlanId || ""}
                       onChange={(e) => handlePlanChange(s.id, e.target.value)}
-                      className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs focus:ring-brand-gold focus:border-brand-gold">
+                      className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs focus:ring-brand-gold focus:border-brand-gold w-full"
+                      disabled={!structure}>
                       <option value="" disabled>
-                        Select a plan
+                        {structure ? "Select a plan" : "No plans for batch"}
                       </option>
-                      {Object.entries(PAYMENT_PLANS).map(([key, value]) => (
-                        <option key={key} value={key}>
-                          {value.name}
+                      {structure?.plans.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
                         </option>
                       ))}
                     </select>
@@ -305,9 +296,9 @@ const FeeStructureView = ({ students, batches, feeDetails, onSavePlan }) => {
                     )}
                   </div>
                   <div className="col-span-2 text-brand-gold font-bold text-base">
-                    {selectedPlanKey
+                    {typeof totalPayable === "number"
                       ? `₹${totalPayable.toLocaleString("en-IN")}`
-                      : "N/A"}
+                      : totalPayable}
                   </div>
                 </div>
               );
@@ -319,7 +310,7 @@ const FeeStructureView = ({ students, batches, feeDetails, onSavePlan }) => {
   );
 };
 
-// --- PAYMENT COLLECTION VIEW COMPONENT (Logic Corrected) ---
+// --- PAYMENT COLLECTION VIEW COMPONENT ---
 const PaymentCollectionView = ({
   feeDetails,
   students,
@@ -341,7 +332,6 @@ const PaymentCollectionView = ({
       if (student && detail.installments) {
         detail.installments.forEach((inst, index) => {
           const uniqueId = `${student.id}_${index}`;
-          // An installment belongs to this month if it's DUE this month OR was PAID this month
           const isDueThisMonth = isWithinInterval(
             inst.dueDate.toDate(),
             monthInterval
@@ -374,12 +364,10 @@ const PaymentCollectionView = ({
       }
     });
 
-    // Sort the lists
     pendingForMonth.sort((a, b) => a.dueDate.toDate() - b.dueDate.toDate());
     paidForMonth.sort(
       (a, b) => b.paymentDate.toDate() - a.paymentDate.toDate()
     );
-
     return { pending: pendingForMonth, paid: paidForMonth };
   }, [feeDetails, students, currentMonth]);
 
@@ -479,8 +467,7 @@ const PaymentCollectionView = ({
             </div>
             {listToShow.length === 0 && (
               <p className="text-center text-slate-500 py-12">
-                No installments found in this category for{" "}
-                {format(currentMonth, "MMMM")}.
+                No installments found for {format(currentMonth, "MMMM")}.
               </p>
             )}
           </div>
@@ -490,21 +477,20 @@ const PaymentCollectionView = ({
   );
 };
 
-// --- MAIN PAGE COMPONENT (No logical changes, just the fixed import) ---
+// --- MAIN PAGE COMPONENT ---
 export default function FeeManagementPage() {
   const [activeTab, setActiveTab] = useState("paymentCollection");
   const [students, setStudents] = useState([]);
   const [batches, setBatches] = useState([]);
   const [feeDetails, setFeeDetails] = useState([]);
+  const [feeStructures, setFeeStructures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [collectingData, setCollectingData] = useState({
     student: null,
     installment: null,
   });
-
   const [batchFilter, setBatchFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -517,30 +503,43 @@ export default function FeeManagementPage() {
       query(collection(db, "batches"), orderBy("name")),
       (snap) => {
         setBatches(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
       }
     );
     const unsubFeeDetails = onSnapshot(
       collection(db, "studentFeeDetails"),
       (snap) => setFeeDetails(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
+    const unsubFeeStructures = onSnapshot(
+      collection(db, "feeStructures"),
+      (snap) => {
+        setFeeStructures(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      }
+    );
 
     return () => {
       unsubStudents();
       unsubBatches();
       unsubFeeDetails();
+      unsubFeeStructures();
     };
   }, []);
 
-  const filteredStudents = useMemo(() => {
+  const enrichedStudents = useMemo(() => {
+    const feeDetailMap = new Map(feeDetails.map((d) => [d.id, d]));
     return students
+      .map((s) => {
+        const studentBatch = batches.find((b) => b.name === s.batch);
+        return {
+          ...s,
+          batch: studentBatch ? studentBatch.name : "Unknown Batch",
+          batchId: studentBatch ? studentBatch.id : null,
+          feeDetail: feeDetailMap.get(s.id),
+        };
+      })
       .filter((s) => batchFilter === "all" || s.batch === batchFilter)
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.rollNumber || "").toLowerCase().includes(searchTerm.toLowerCase())
-      );
-  }, [students, batchFilter, searchTerm]);
+      .filter((s) => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [students, batches, feeDetails, batchFilter, searchTerm]);
 
   const monthlyStats = useMemo(() => {
     const monthInterval = {
@@ -551,7 +550,7 @@ export default function FeeManagementPage() {
     let pending = 0;
 
     feeDetails.forEach((detail) => {
-      const student = filteredStudents.find((s) => s.id === detail.id);
+      const student = enrichedStudents.find((s) => s.id === detail.id);
       if (student && detail.installments) {
         detail.installments.forEach((inst) => {
           const isPaidThisMonth = inst.paymentDate
@@ -570,89 +569,40 @@ export default function FeeManagementPage() {
         });
       }
     });
-
     return { collected, pending };
-  }, [feeDetails, filteredStudents, currentMonth]);
+  }, [feeDetails, enrichedStudents, currentMonth]);
 
-  const handleSavePlan = async (studentId, planKey) => {
+  const handleSavePlan = async (studentId, plan) => {
     const student = students.find((s) => s.id === studentId);
-    const batch = batches.find((b) => b.name === student.batch);
-    if (!student || !batch || !batch.totalCourseFee) {
-      alert("Student's batch or batch fee is not configured correctly.");
+    if (!student || !plan || !plan.installments) {
+      alert("Error: Cannot assign a plan without defined installments.");
       return;
     }
 
-    const plan = PAYMENT_PLANS[planKey];
-    const totalFee = batch.totalCourseFee;
-    let installments = [];
     const admissionDate = student.admissionDate
       ? student.admissionDate.toDate()
       : new Date();
 
-    switch (planKey) {
-      case "one-time":
-        installments.push({
-          description: "One-time Full Payment",
-          amount: totalFee - plan.discount,
-          dueDate: Timestamp.fromDate(admissionDate),
-          status: "pending",
-        });
-        break;
-      case "two-installments":
-        installments.push({
-          description: "1st Installment",
-          amount: 14000,
-          dueDate: Timestamp.fromDate(admissionDate),
-          status: "pending",
-        });
-        installments.push({
-          description: "2nd Installment",
-          amount: 12000,
-          dueDate: Timestamp.fromDate(addMonths(admissionDate, 3)),
-          status: "pending",
-        });
-        break;
-      case "three-installments":
-        installments.push({
-          description: "1st Installment",
-          amount: 10000,
-          dueDate: Timestamp.fromDate(admissionDate),
-          status: "pending",
-        });
-        installments.push({
-          description: "2nd Installment",
-          amount: 10000,
-          dueDate: Timestamp.fromDate(addMonths(admissionDate, 2)),
-          status: "pending",
-        });
-        installments.push({
-          description: "3rd Installment",
-          amount: 6500,
-          dueDate: Timestamp.fromDate(addMonths(admissionDate, 4)),
-          status: "pending",
-        });
-        break;
-      case "per-month":
-        for (let i = 0; i < plan.totalMonths; i++) {
-          installments.push({
-            description: `Fee for ${format(
-              addMonths(admissionDate, i),
-              "MMMM"
-            )}`,
-            amount: plan.monthlyAmount,
-            dueDate: Timestamp.fromDate(addMonths(admissionDate, i)),
-            status: "pending",
-          });
-        }
-        break;
-    }
+    const studentInstallments = plan.installments.map((instTemplate) => ({
+      description: instTemplate.description,
+      amount: Number(instTemplate.amount),
+      status: "pending",
+      dueDate: Timestamp.fromDate(
+        addMonths(admissionDate, Number(instTemplate.offsetMonths))
+      ),
+    }));
 
     const docRef = doc(db, "studentFeeDetails", studentId);
     await setDoc(
       docRef,
-      { selectedPlan: planKey, installments },
+      {
+        selectedPlanId: plan.id,
+        installments: studentInstallments,
+      },
       { merge: true }
     );
+
+    alert(`Plan "${plan.name}" assigned to ${student.name}.`);
   };
 
   const handleCollectFee = (student, installment) => {
@@ -661,40 +611,31 @@ export default function FeeManagementPage() {
   };
 
   const handleSavePayment = async (student, installment, paymentData) => {
-    const feeDetailRef = doc(db, "studentFeeDetails", student.id);
-    const transactionRef = collection(db, "feeTransactions");
-
-    const feeDetailDoc = feeDetails.find((d) => d.id === student.id);
-    if (!feeDetailDoc) return;
-    const updatedInstallments = feeDetailDoc.installments.map((inst) => {
-      if (
-        inst.dueDate.isEqual(installment.dueDate) &&
-        inst.description === installment.description
-      ) {
-        return {
-          ...inst,
-          status: "paid",
-          paymentDate: Timestamp.fromDate(new Date(paymentData.paymentDate)),
-          amountPaid: Number(paymentData.amountPaid),
-        };
+    try {
+      const serializableInstallment = {
+        ...installment,
+        dueDate: installment.dueDate.toDate().toISOString(),
+      };
+      const response = await fetch("/api/collect-fee", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          student,
+          installment: serializableInstallment,
+          paymentData,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Something went wrong");
       }
-      return inst;
-    });
-
-    await setDoc(
-      feeDetailRef,
-      { installments: updatedInstallments },
-      { merge: true }
-    );
-    await addDoc(transactionRef, {
-      studentId: student.id,
-      studentName: student.name,
-      amount: Number(paymentData.amountPaid),
-      paymentDate: Timestamp.fromDate(new Date(paymentData.paymentDate)),
-      paymentMethod: paymentData.paymentMethod,
-      description: installment.description,
-      createdAt: Timestamp.now(),
-    });
+      alert("Payment processed successfully and receipt sent!");
+    } catch (error) {
+      console.error("Failed to collect fee:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   return (
@@ -706,13 +647,14 @@ export default function FeeManagementPage() {
         student={collectingData.student}
         installment={collectingData.installment}
       />
+
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-1">
             Fee Management
           </h1>
           <p className="text-base text-slate">
-            Assign payment plans and track all installments.
+            Assign plans, manage structures, and track all installments.
           </p>
         </div>
       </div>
@@ -726,18 +668,25 @@ export default function FeeManagementPage() {
                 ? "bg-brand-gold text-dark-navy font-bold"
                 : "text-slate-300 hover:bg-slate-800"
             }`}>
-            <IndianRupee size={16} />
-            Payment Collection
+            <IndianRupee size={16} /> Payment Collection
           </button>
           <button
-            onClick={() => setActiveTab("feeStructures")}
+            onClick={() => setActiveTab("assignPlans")}
             className={`px-4 py-1.5 text-sm rounded-md flex items-center gap-2 ${
-              activeTab === "feeStructures"
+              activeTab === "assignPlans"
                 ? "bg-brand-gold text-dark-navy font-bold"
                 : "text-slate-300 hover:bg-slate-800"
             }`}>
-            <BarChart size={16} />
-            Fee Structures
+            <BarChart size={16} /> Assign Plans
+          </button>
+          <button
+            onClick={() => setActiveTab("manageStructures")}
+            className={`px-4 py-1.5 text-sm rounded-md flex items-center gap-2 ${
+              activeTab === "manageStructures"
+                ? "bg-brand-gold text-dark-navy font-bold"
+                : "text-slate-300 hover:bg-slate-800"
+            }`}>
+            <Settings size={16} /> Manage Plans
           </button>
         </div>
         {activeTab === "paymentCollection" && (
@@ -759,31 +708,33 @@ export default function FeeManagementPage() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 p-4 rounded-xl border border-white/10 bg-slate-900/20">
-        <div className="relative w-full sm:w-64">
-          <select
-            onChange={(e) => setBatchFilter(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
-            <option value="all">All Batches</option>
-            {batches.map((b) => (
-              <option key={b.id} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+      {activeTab !== "manageStructures" && (
+        <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 p-4 rounded-xl border border-white/10 bg-slate-900/20">
+          <div className="relative w-full sm:w-64">
+            <select
+              onChange={(e) => setBatchFilter(e.target.value)}
+              className="w-full appearance-none rounded-lg border border-slate-700 bg-slate-900 p-3 pr-8 text-light-slate focus:border-brand-gold cursor-pointer">
+              <option value="all">All Batches</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+          </div>
+          <div className="relative w-full sm:flex-grow">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by student name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 p-3 rounded-lg border border-slate-700 bg-slate-900 text-light-slate focus:border-brand-gold"
+            />
+          </div>
         </div>
-        <div className="relative w-full sm:flex-grow">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by student name or roll no..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 p-3 rounded-lg border border-slate-700 bg-slate-900 text-light-slate focus:border-brand-gold"
-          />
-        </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center items-center py-20">
@@ -812,22 +763,22 @@ export default function FeeManagementPage() {
                   />
                 </div>
                 <PaymentCollectionView
-                  feeDetails={feeDetails.filter((d) =>
-                    filteredStudents.some((s) => s.id === d.id)
-                  )}
-                  students={filteredStudents}
+                  feeDetails={feeDetails}
+                  students={enrichedStudents}
                   onCollectFee={handleCollectFee}
                   currentMonth={currentMonth}
                 />
               </Fragment>
             )}
-            {activeTab === "feeStructures" && (
-              <FeeStructureView
-                students={filteredStudents}
-                batches={batches}
-                feeDetails={feeDetails}
+            {activeTab === "assignPlans" && (
+              <AssignPlanView
+                students={enrichedStudents}
+                feeStructures={feeStructures}
                 onSavePlan={handleSavePlan}
               />
+            )}
+            {activeTab === "manageStructures" && (
+              <FeeStructureEditor batches={batches} />
             )}
           </motion.div>
         </AnimatePresence>

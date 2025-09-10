@@ -1,3 +1,4 @@
+// src/app/portal/(app)/student-dashboard/fees/page.jsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -6,21 +7,20 @@ import { db } from "@/firebase/config";
 import { useAuth } from "@/context/AuthContext";
 import { doc, onSnapshot, Timestamp } from "firebase/firestore";
 import {
-  CreditCard,
   CheckCircle2,
-  QrCode,
-  Wallet,
   Copy,
   Loader2,
   Info,
   Clock,
+  PieChart,
+  QrCode,
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 
 const formatDate = (date) =>
   date instanceof Timestamp ? format(date.toDate(), "MMMM dd, yyyy") : "N/A";
 
-// --- REUSABLE COMPONENTS ---
+// --- REUSABLE UI COMPONENTS ---
 
 const StatusBadge = ({ status }) => {
   const styles = useMemo(
@@ -99,49 +99,144 @@ const InstallmentRow = ({ installment }) => {
   );
 };
 
+// --- UPDATED PlanSummaryCard ---
+const PlanSummaryCard = ({ allInstallments, assignedPlanName }) => {
+  const totalPaid = useMemo(
+    () =>
+      allInstallments
+        .filter((inst) => inst.status === "paid")
+        .reduce((sum, inst) => sum + (inst.amountPaid || inst.amount), 0),
+    [allInstallments]
+  );
+
+  // CORRECTED LOGIC: Total due is the sum of all assigned installments
+  const totalDue = useMemo(
+    () => allInstallments.reduce((sum, inst) => sum + inst.amount, 0),
+    [allInstallments]
+  );
+
+  const percentagePaid = totalDue > 0 ? (totalPaid / totalDue) * 100 : 0;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="md:col-span-2 rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg">
+        <h2 className="text-xl font-semibold text-brand-gold mb-1">
+          Your Fee Plan
+        </h2>
+        <p className="text-2xl font-bold text-light-slate">
+          {assignedPlanName}
+        </p>
+
+        <div className="mt-6">
+          <div className="flex justify-between items-end text-sm mb-1">
+            <span className="text-slate">Paid</span>
+            <span className="font-bold text-white">
+              ₹{totalPaid.toLocaleString("en-IN")} / ₹
+              {totalDue.toLocaleString("en-IN")}
+            </span>
+          </div>
+          <div className="w-full bg-slate-700/50 rounded-full h-2.5">
+            <motion.div
+              className="bg-green-500 h-2.5 rounded-full"
+              style={{ width: `${percentagePaid}%` }}
+              initial={{ width: 0 }}
+              animate={{ width: `${percentagePaid}%` }}
+              transition={{ duration: 0.8 }}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg flex flex-col justify-center items-center">
+        <PieChart className="h-10 w-10 text-slate-400 mb-2" />
+        <p className="text-3xl font-bold text-light-slate">
+          {Math.round(percentagePaid)}%
+        </p>
+        <h3 className="text-md font-medium text-slate">Paid of Total</h3>
+      </div>
+    </div>
+  );
+};
+
 export default function PaymentsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [studentProfile, setStudentProfile] = useState(null);
   const [feeDetails, setFeeDetails] = useState(null);
+  const [feeStructure, setFeeStructure] = useState(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
-      const timer = setTimeout(() => {
-        if (!user) setLoading(false);
-      }, 1500);
-      return () => clearTimeout(timer);
+      setLoading(false);
+      return;
     }
+
+    const unsubStudent = onSnapshot(
+      doc(db, "students", user.uid),
+      (docSnap) => {
+        setStudentProfile(
+          docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null
+        );
+      }
+    );
 
     const unsubFeeDetails = onSnapshot(
       doc(db, "studentFeeDetails", user.uid),
       (docSnap) => {
-        if (docSnap.exists()) {
-          setFeeDetails({ id: docSnap.id, ...docSnap.data() });
-        } else {
-          setFeeDetails(null); // No plan assigned
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching fee details:", error);
-        setLoading(false);
+        setFeeDetails(
+          docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null
+        );
       }
     );
 
-    return () => unsubFeeDetails();
+    return () => {
+      unsubStudent();
+      unsubFeeDetails();
+    };
   }, [user]);
 
-  const { nextInstallment, allInstallments } = useMemo(() => {
+  useEffect(() => {
+    if (studentProfile?.batchId) {
+      const unsubFeeStructure = onSnapshot(
+        doc(db, "feeStructures", studentProfile.batchId),
+        (docSnap) => {
+          setFeeStructure(
+            docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null
+          );
+          setLoading(false);
+        },
+        () => setLoading(false)
+      );
+      return () => unsubFeeStructure();
+    } else if (studentProfile === null && user?.uid) {
+      // If student profile is not found, we can stop loading
+      setLoading(false);
+    }
+  }, [studentProfile, user]);
+
+  const { nextInstallment, allInstallments, assignedPlanName } = useMemo(() => {
     if (!feeDetails?.installments) {
-      return { nextInstallment: null, allInstallments: [] };
+      return {
+        nextInstallment: null,
+        allInstallments: [],
+        assignedPlanName: "N/A",
+      };
     }
     const sorted = [...feeDetails.installments].sort(
       (a, b) => a.dueDate.toDate() - b.dueDate.toDate()
     );
     const next = sorted.find((inst) => inst.status === "pending") || null;
-    return { nextInstallment: next, allInstallments: sorted };
-  }, [feeDetails]);
+    const plan = feeStructure?.plans.find(
+      (p) => p.id === feeDetails.selectedPlanId
+    );
+    const planName = plan ? plan.name : "Assigned Plan";
+
+    return {
+      nextInstallment: next,
+      allInstallments: sorted,
+      assignedPlanName: planName,
+    };
+  }, [feeDetails, feeStructure]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText("brightspark.jaipur@okhdfcbank");
@@ -184,92 +279,94 @@ export default function PaymentsPage() {
               </p>
             </div>
           </motion.div>
-        ) : nextInstallment ? (
-          // --- DUE VIEW ---
-          <motion.div
-            key="due"
-            className="mb-8 rounded-2xl border border-brand-gold/30 bg-slate-900/20 overflow-hidden"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}>
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              <div className="p-6 md:p-8 flex flex-col">
-                <div>
-                  <p className="text-brand-gold font-semibold">
-                    Next Installment Due
-                  </p>
-                  <h2 className="text-4xl font-bold text-white mt-2">
-                    ₹{nextInstallment.amount.toLocaleString("en-IN")}
-                  </h2>
-                  <p className="text-sm text-slate mb-4">
-                    For: {nextInstallment.description}
-                  </p>
-                  <p className="text-md font-semibold text-light-slate">
-                    Due by: {formatDate(nextInstallment.dueDate)}
-                  </p>
-                </div>
-                <div className="mt-6 pt-6 border-t border-slate-700/50 flex-grow text-center">
-                  <h4 className="text-sm font-semibold text-slate mb-2">
-                    How to Pay
-                  </h4>
-                  <p className="text-xs text-slate/80">
-                    You can pay with cash at the institute's front desk, or use
-                    the QR code / UPI ID for online payment.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-6 md:p-8 bg-slate-900/40 gap-6 md:flex-row md:gap-8">
-                <div className="text-center">
-                  <h3 className="font-semibold text-light-slate mb-2">
-                    Scan & Pay
-                  </h3>
-                  <div className="p-3 bg-white rounded-lg shadow-lg">
-                    <QrCode className="h-28 w-28 md:h-32 md:w-32 text-dark-navy" />
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-slate">Or use UPI ID:</p>
-                  <div className="mt-1 flex items-center gap-2 px-3 py-1.5 rounded-md">
-                    <p className="text-base font-semibold text-light-slate tracking-wider">
-                      brightspark.jaipur@okhdfcbank
-                    </p>
-                    <button
-                      onClick={handleCopy}
-                      className="text-slate hover:text-brand-gold transition-colors p-1"
-                      title="Copy UPI ID">
-                      {copied ? (
-                        <CheckCircle2 size={16} className="text-green-400" />
-                      ) : (
-                        <Copy size={16} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         ) : (
-          // --- ALL PAID VIEW ---
           <motion.div
-            key="paid"
-            className="mb-8 rounded-2xl border border-green-500/30 bg-green-500/10 p-8 text-center"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}>
-            <CheckCircle2 className="mx-auto h-16 w-16 text-green-400 mb-4" />
-            <h2 className="text-3xl font-bold text-white">Fees Fully Paid</h2>
-            <p className="text-green-300 mt-2">
-              Thank you! All installments for your selected payment plan have
-              been cleared.
-            </p>
+            key="plan-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}>
+            <PlanSummaryCard
+              allInstallments={allInstallments}
+              assignedPlanName={assignedPlanName}
+            />
+            {nextInstallment ? (
+              <div className="mb-8 rounded-2xl border border-brand-gold/30 bg-slate-900/20 overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  <div className="p-6 md:p-8 flex flex-col">
+                    <div>
+                      <p className="text-brand-gold font-semibold">
+                        Next Installment Due
+                      </p>
+                      <h2 className="text-4xl font-bold text-white mt-2">
+                        ₹{nextInstallment.amount.toLocaleString("en-IN")}
+                      </h2>
+                      <p className="text-sm text-slate mb-4">
+                        For: {nextInstallment.description}
+                      </p>
+                      <p className="text-md font-semibold text-light-slate">
+                        Due by: {formatDate(nextInstallment.dueDate)}
+                      </p>
+                    </div>
+                    <div className="mt-6 pt-6 border-t border-slate-700/50 flex-grow text-center">
+                      <h4 className="text-sm font-semibold text-slate mb-2">
+                        How to Pay
+                      </h4>
+                      <p className="text-xs text-slate/80">
+                        You can pay with cash at the institute's front desk, or
+                        use the QR code / UPI ID for online payment.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-6 md:p-8 bg-slate-900/40 gap-6 md:flex-row md:gap-8">
+                    <div className="text-center">
+                      <h3 className="font-semibold text-light-slate mb-2">
+                        Scan & Pay
+                      </h3>
+                      <div className="p-3 bg-white rounded-lg shadow-lg">
+                        <QrCode className="h-28 w-28 md:h-32 md:w-32 text-dark-navy" />
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-slate">Or use UPI ID:</p>
+                      <div className="mt-1 flex items-center gap-2 px-3 py-1.5 rounded-md">
+                        <p className="text-base font-semibold text-light-slate tracking-wider">
+                          brightspark.jaipur@okhdfcbank
+                        </p>
+                        <button
+                          onClick={handleCopy}
+                          className="text-slate hover:text-brand-gold transition-colors p-1"
+                          title="Copy UPI ID">
+                          {copied ? (
+                            <CheckCircle2
+                              size={16}
+                              className="text-green-400"
+                            />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-8 rounded-2xl border border-green-500/30 bg-green-500/10 p-8 text-center">
+                <CheckCircle2 className="mx-auto h-16 w-16 text-green-400 mb-4" />
+                <h2 className="text-3xl font-bold text-white">
+                  Fees Fully Paid
+                </h2>
+                <p className="text-green-300 mt-2">
+                  Thank you! All installments for your plan have been cleared.
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* --- INSTALLMENT HISTORY SECTION --- */}
       <h2 className="text-xl font-semibold text-brand-gold mb-4">
-        Your Payment Plan Schedule
+        Installment History
       </h2>
       <div className="rounded-2xl border border-white/10 bg-slate-900/20 backdrop-blur-lg divide-y divide-slate-700/50">
         {allInstallments.length > 0
