@@ -7,7 +7,6 @@ import { useEffect } from "react";
 // Import the new, separated widget components
 import FeaturedAnnouncement from "./components/FeaturedAnnouncements";
 import AssignmentWidget from "./components/AssignmentWidget";
-import HomeworkWidget from "./components/HomeworkWidget";
 import ResultsWidget from "./components/ResultsWidget";
 import PaymentsWidget from "./components/PaymentsWidget";
 import EventWidget from "./components/EventWidget";
@@ -50,12 +49,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-8">
         <EventWidget /> {/* <-- MOVED TO FIRST POSITION */}
         <AssignmentWidget />
-        <HomeworkWidget />
         <ResultsWidget />
         <PaymentsWidget />
         <QuickLinksWidget/>
       </div>
-      <QuickActions/>
     </div>
   );
 }

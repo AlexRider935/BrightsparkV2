@@ -1,9 +1,8 @@
-// src/app/portal/(app)/student-dashboard/components/QuickActions.jsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
 import { db } from "@/firebase/config";
+import { useAuth } from "@/context/AuthContext";
 import {
   collection,
   onSnapshot,
@@ -11,13 +10,32 @@ import {
   where,
   orderBy,
   Timestamp,
+  doc,
+  getDoc,
 } from "firebase/firestore";
-import { HelpCircle, UserSquare, Calendar, X, Loader2 } from "lucide-react";
-import Link from "next/link";
-import { format, startOfMonth } from "date-fns";
+import WidgetCard from "./WidgetCard";
+import {
+  CalendarDays,
+  Loader2,
+  Users,
+  Sun,
+  FileText,
+  Briefcase,
+} from "lucide-react";
+import { format, startOfDay } from "date-fns";
 
-// --- Helper function to format event dates dynamically ---
-const formatHolidayDate = (startDate, endDate) => {
+// --- Helper Data and Functions ---
+
+const eventTypeDetails = {
+  PTM: { Icon: Users, label: "Meeting" },
+  Test: { Icon: FileText, label: "Test" },
+  Holiday: { Icon: Sun, label: "Holiday" },
+  Event: { Icon: CalendarDays, label: "Event" },
+  ExtraClass: { Icon: Briefcase, label: "Extra Class" },
+  ExtendedClass: { Icon: CalendarDays, label: "Extended Class" },
+};
+
+const formatEventDate = (startDate, endDate) => {
   if (!startDate || !(startDate instanceof Timestamp)) return "Date TBD";
   const start = startDate.toDate();
   if (
@@ -35,144 +53,189 @@ const formatHolidayDate = (startDate, endDate) => {
   }
 };
 
-// --- ActionButton Component ---
-const ActionButton = ({ Icon, children, href, onClick, target }) => {
-  const Component = href ? Link : "button";
+// --- Main Component ---
 
-  const commonProps = {
-    onClick: onClick,
-    className:
-      "flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-slate hover:text-light-slate w-full text-center",
-  };
+const EventWidget = () => {
+  const { user, initialising } = useAuth();
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const componentProps = { ...commonProps };
-  if (href) {
-    componentProps.href = href;
-    if (target) {
-      componentProps.target = target;
-      componentProps.rel = "noopener noreferrer";
+  useEffect(() => {
+    if (initialising) return;
+    if (!user?.uid) {
+      setLoading(false);
+      return;
     }
+
+    let unsubscribe = () => {};
+
+    const fetchStudentAndEvents = async () => {
+      try {
+        const studentDocRef = doc(db, "students", user.uid);
+        const studentSnap = await getDoc(studentDocRef);
+        if (!studentSnap.exists()) {
+          throw new Error("Student profile not found.");
+        }
+        const studentBatch = studentSnap.data().batch;
+        if (!studentBatch) {
+          throw new Error("You are not assigned to a batch.");
+        }
+
+        const startOfToday = startOfDay(new Date());
+        const eventsQuery = query(
+          collection(db, "events"),
+          where("startDate", ">=", Timestamp.fromDate(startOfToday)),
+          orderBy("startDate", "asc")
+        );
+
+        unsubscribe = onSnapshot(
+          eventsQuery,
+          (snapshot) => {
+            const allUpcomingEvents = snapshot.docs.map((d) => ({
+              ...d.data(),
+              id: d.id,
+            }));
+
+            const relevantEvents = allUpcomingEvents.filter(
+              (event) =>
+                !event.batches ||
+                event.batches.length === 0 ||
+                event.batches.includes(studentBatch)
+            );
+
+            setEvents(relevantEvents);
+            setLoading(false);
+          },
+          (err) => {
+            console.error("Error fetching events snapshot:", err);
+            setError("Could not load events.");
+            setLoading(false);
+          }
+        );
+      } catch (err) {
+        console.error("Error setting up event listener:", err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchStudentAndEvents();
+
+    return () => unsubscribe();
+  }, [user, initialising]);
+
+  const { nextEvent, upcomingEvents } = useMemo(() => {
+    if (events.length === 0) {
+      return { nextEvent: null, upcomingEvents: [] };
+    }
+    const [first, ...rest] = events;
+    return { nextEvent: first, upcomingEvents: rest.slice(0, 3) }; // Total of 4 events
+  }, [events]);
+
+  if (loading || initialising) {
+    return (
+      <WidgetCard title="Upcoming Events" Icon={CalendarDays}>
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        </div>
+      </WidgetCard>
+    );
   }
 
+  if (error) {
+    return (
+      <WidgetCard title="Upcoming Events" Icon={CalendarDays}>
+        <div className="flex items-center justify-center h-full">
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
+      </WidgetCard>
+    );
+  }
+
+  if (!nextEvent) {
+    return (
+      <WidgetCard title="Upcoming Events" Icon={CalendarDays}>
+        <div className="flex items-center justify-center h-full">
+          <p className="text-sm text-slate-500">
+            No upcoming events scheduled for your batch.
+          </p>
+        </div>
+      </WidgetCard>
+    );
+  }
+
+  const { Icon: NextEventIcon, label: nextEventLabel } = eventTypeDetails[
+    nextEvent.type
+  ] || {
+    Icon: CalendarDays,
+    label: nextEvent.type,
+  };
+
   return (
-    <Component {...componentProps}>
-      <Icon className="h-8 w-8 text-brand-gold" />
-      <span className="text-sm font-semibold">{children}</span>
-    </Component>
+    <WidgetCard
+      title="Upcoming Events"
+      Icon={CalendarDays}
+      route="/portal/student-dashboard/events">
+      <div className="flex flex-col h-full">
+        {/* Next Event Section */}
+        <div className="flex items-center space-x-4 mb-4">
+          <NextEventIcon className="h-7 w-7 text-brand-gold shrink-0" />
+          <div className="flex-grow min-w-0">
+            <p className="font-semibold text-light-slate truncate">
+              {nextEvent.title}
+            </p>
+            <p className="text-sm text-slate">
+              {formatEventDate(nextEvent.startDate, nextEvent.endDate)}
+            </p>
+          </div>
+          <span className="px-2 py-1 text-xs font-semibold rounded-full shrink-0 bg-slate-500/20 text-slate-300">
+            {nextEventLabel}
+          </span>
+        </div>
+
+        <hr className="border-slate-700/50 my-2" />
+
+        {/* Upcoming Events List */}
+        <div className="flex-grow">
+          {upcomingEvents.length > 0 ? (
+            <ul className="space-y-3">
+              {upcomingEvents.map((event) => {
+                const { Icon, label } = eventTypeDetails[event.type] || {
+                  Icon: CalendarDays,
+                  label: event.type,
+                };
+                return (
+                  <li
+                    key={event.id}
+                    className="flex items-center space-x-3 text-sm">
+                    <Icon className="h-5 w-5 text-slate-400 shrink-0" />
+                    <div className="flex-grow min-w-0">
+                      <p className="font-medium text-slate/90 truncate">
+                        {event.title}
+                      </p>
+                      <p className="text-xs text-slate/70">
+                        {formatEventDate(event.startDate, event.endDate)}
+                      </p>
+                    </div>
+                    <p className="text-xs font-medium text-slate-400 shrink-0">
+                      {label}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="flex items-center justify-center h-full pt-4">
+              <p className="text-sm text-slate-500">
+                No other events planned soon.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </WidgetCard>
   );
 };
 
-export default function QuickActions() {
-  const [showHolidays, setShowHolidays] = useState(false);
-  const [holidays, setHolidays] = useState([]);
-  const [loadingHolidays, setLoadingHolidays] = useState(true);
-
-  // Fetch upcoming holidays from Firestore
-  useEffect(() => {
-    // CORRECTED: Fetch all holidays from the start of the CURRENT month onwards
-    const startOfCurrentMonth = startOfMonth(new Date());
-
-    const holidaysQuery = query(
-      collection(db, "events"),
-      where("type", "==", "Holiday"),
-      where("startDate", ">=", Timestamp.fromDate(startOfCurrentMonth)),
-      orderBy("startDate", "asc")
-    );
-
-    const unsubscribe = onSnapshot(
-      holidaysQuery,
-      (snapshot) => {
-        setHolidays(
-          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-        setLoadingHolidays(false);
-      },
-      (error) => {
-        console.error("Failed to fetch holidays:", error);
-        setLoadingHolidays(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  return (
-    <>
-      <motion.div
-        className="mt-8 rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}>
-        <h3 className="text-lg font-semibold text-light-slate mb-4">
-          Quick Actions & Support
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <ActionButton
-            Icon={HelpCircle}
-            href="mailto:support@brightspark.space">
-            Ask a Question
-          </ActionButton>
-          <ActionButton
-            Icon={UserSquare}
-            href="/path/to/mock-id-card.pdf"
-            target="_blank">
-            Download ID Card
-          </ActionButton>
-          <ActionButton Icon={Calendar} onClick={() => setShowHolidays(true)}>
-            View Holiday List
-          </ActionButton>
-        </div>
-      </motion.div>
-
-      {/* Holiday List Modal */}
-      <AnimatePresence>
-        {showHolidays && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowHolidays(false)}>
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-md rounded-2xl border border-white/10 bg-dark-navy p-6">
-              <h3 className="text-xl font-bold text-brand-gold mb-4">
-                Upcoming Holidays
-              </h3>
-              {loadingHolidays ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="animate-spin text-slate-400" />
-                </div>
-              ) : holidays.length > 0 ? (
-                <ul className="divide-y divide-slate-700/50">
-                  {holidays.map((holiday) => (
-                    <li
-                      key={holiday.id}
-                      className="flex justify-between items-center py-3">
-                      <span className="text-light-slate">{holiday.title}</span>
-                      <span className="text-slate text-xs">
-                        {formatHolidayDate(holiday.startDate, holiday.endDate)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="py-8 text-center text-slate-500">
-                  No upcoming holidays scheduled.
-                </p>
-              )}
-              <button
-                className="absolute top-4 right-4 text-slate hover:text-white transition-colors"
-                onClick={() => setShowHolidays(false)}>
-                <X size={24} />
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-}
+export default EventWidget;

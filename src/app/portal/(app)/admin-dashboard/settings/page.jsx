@@ -1,4 +1,3 @@
-// src/app/portal/(app)/admin-dashboard/settings/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,6 +14,9 @@ import {
   X,
   CreditCard,
   UploadCloud,
+  Link as LinkIcon,
+  PlusCircle,
+  Trash2,
 } from "lucide-react";
 
 // --- Reusable Components ---
@@ -34,7 +36,7 @@ const SettingsCard = ({ icon: Icon, title, children }) => (
   </motion.div>
 );
 
-const SaveBar = ({ isVisible, isSaving, onSave, onReset }) => (
+const SaveBar = ({ isVisible, isSaving, onReset }) => (
   <AnimatePresence>
     {isVisible && (
       <motion.div
@@ -97,39 +99,58 @@ const ToastNotification = ({ message, type, onDismiss }) => {
 };
 
 export default function SystemSettingsPage() {
-  const [settings, setSettings] = useState({ upiId: "", qrCodeUrl: "" });
-  const [initialSettings, setInitialSettings] = useState({
+  // State for payments
+  const [paymentSettings, setPaymentSettings] = useState({
+    upiId: "",
+    qrCodeUrl: "",
+  });
+  const [initialPaymentSettings, setInitialPaymentSettings] = useState({
     upiId: "",
     qrCodeUrl: "",
   });
   const [qrCodeImageFile, setQrCodeImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+
+  // State for quick links
+  const [quickLinks, setQuickLinks] = useState([]);
+  const [initialQuickLinks, setInitialQuickLinks] = useState([]);
+
+  // General state
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState({ message: "", type: "" });
 
   const isDirty =
-    JSON.stringify(settings) !== JSON.stringify(initialSettings) ||
+    JSON.stringify(paymentSettings) !==
+      JSON.stringify(initialPaymentSettings) ||
+    JSON.stringify(quickLinks) !== JSON.stringify(initialQuickLinks) ||
     !!qrCodeImageFile;
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const settingsRef = doc(db, "settings", "payments");
-        const docSnap = await getDoc(settingsRef);
-        const fetchedData = docSnap.exists()
-          ? docSnap.data()
+        const paymentsRef = doc(db, "settings", "payments");
+        const linksRef = doc(db, "settings", "quickLinks");
+
+        const [paymentsSnap, linksSnap] = await Promise.all([
+          getDoc(paymentsRef),
+          getDoc(linksRef),
+        ]);
+
+        const fetchedPayments = paymentsSnap.exists()
+          ? paymentsSnap.data()
           : { upiId: "", qrCodeUrl: "" };
-        setSettings(fetchedData);
-        setInitialSettings(fetchedData);
-        setPreviewUrl(fetchedData.qrCodeUrl || "");
+        setPaymentSettings(fetchedPayments);
+        setInitialPaymentSettings(fetchedPayments);
+        setPreviewUrl(fetchedPayments.qrCodeUrl || "");
+
+        const fetchedLinks = linksSnap.exists() ? linksSnap.data().links : [];
+        setQuickLinks(fetchedLinks);
+        setInitialQuickLinks(fetchedLinks);
       } catch (err) {
         console.error("Error fetching settings:", err);
-        setStatus({
-          message: "Could not load payment settings.",
-          type: "error",
-        });
+        setStatus({ message: "Could not load settings.", type: "error" });
       } finally {
         setLoading(false);
       }
@@ -146,9 +167,24 @@ export default function SystemSettingsPage() {
   };
 
   const handleReset = () => {
-    setSettings(initialSettings);
+    setPaymentSettings(initialPaymentSettings);
+    setQuickLinks(initialQuickLinks);
     setQrCodeImageFile(null);
-    setPreviewUrl(initialSettings.qrCodeUrl || "");
+    setPreviewUrl(initialPaymentSettings.qrCodeUrl || "");
+  };
+
+  const handleAddLink = () => {
+    setQuickLinks([...quickLinks, { label: "", href: "" }]);
+  };
+
+  const handleLinkChange = (index, field, value) => {
+    const updatedLinks = [...quickLinks];
+    updatedLinks[index][field] = value;
+    setQuickLinks(updatedLinks);
+  };
+
+  const handleRemoveLink = (index) => {
+    setQuickLinks(quickLinks.filter((_, i) => i !== index));
   };
 
   const handleSaveChanges = async (e) => {
@@ -157,10 +193,9 @@ export default function SystemSettingsPage() {
 
     setIsSaving(true);
     setStatus({ message: "", type: "" });
-    let newQrCodeUrl = settings.qrCodeUrl;
+    let newQrCodeUrl = paymentSettings.qrCodeUrl;
 
     try {
-      // Step 1: Upload new image to Cloudinary if one is selected
       if (qrCodeImageFile) {
         setIsUploading(true);
         const formData = new FormData();
@@ -169,29 +204,35 @@ export default function SystemSettingsPage() {
           "upload_preset",
           process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
         );
-
         const response = await fetch(
           `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
           { method: "POST", body: formData }
         );
-
         if (!response.ok) throw new Error("Image upload failed.");
-
         const data = await response.json();
         newQrCodeUrl = data.secure_url;
         setIsUploading(false);
       }
 
-      // Step 2: Save the updated settings to Firestore
-      const newSettings = { ...settings, qrCodeUrl: newQrCodeUrl };
-      const settingsRef = doc(db, "settings", "payments");
-      await setDoc(settingsRef, newSettings, { merge: true });
+      const newPaymentSettings = {
+        ...paymentSettings,
+        qrCodeUrl: newQrCodeUrl,
+      };
+      const paymentsRef = doc(db, "settings", "payments");
+      const linksRef = doc(db, "settings", "quickLinks");
 
-      setSettings(newSettings);
-      setInitialSettings(newSettings);
+      await Promise.all([
+        setDoc(paymentsRef, newPaymentSettings, { merge: true }),
+        setDoc(linksRef, { links: quickLinks }),
+      ]);
+
+      setPaymentSettings(newPaymentSettings);
+      setInitialPaymentSettings(newPaymentSettings);
+      setQuickLinks(quickLinks);
+      setInitialQuickLinks(quickLinks);
       setQrCodeImageFile(null);
       setStatus({
-        message: "Payment settings updated successfully!",
+        message: "Settings updated successfully!",
         type: "success",
       });
     } catch (err) {
@@ -225,10 +266,10 @@ export default function SystemSettingsPage() {
         System Settings
       </h1>
       <p className="text-base text-slate mb-8">
-        Manage global payment configurations for the student portal.
+        Manage global configurations for the student portal.
       </p>
 
-      <form onSubmit={handleSaveChanges}>
+      <form onSubmit={handleSaveChanges} className="space-y-8">
         <SettingsCard icon={CreditCard} title="Payment Settings">
           <div>
             <label
@@ -240,9 +281,12 @@ export default function SystemSettingsPage() {
               type="text"
               id="upiId"
               name="upiId"
-              value={settings.upiId}
+              value={paymentSettings.upiId}
               onChange={(e) =>
-                setSettings((prev) => ({ ...prev, upiId: e.target.value }))
+                setPaymentSettings((prev) => ({
+                  ...prev,
+                  upiId: e.target.value,
+                }))
               }
               placeholder="e.g., institute@okhdfcbank"
               className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"
@@ -289,11 +333,54 @@ export default function SystemSettingsPage() {
             </div>
           </div>
         </SettingsCard>
+
+        <SettingsCard icon={LinkIcon} title="Student Quick Links">
+          <div className="space-y-4">
+            {quickLinks.map((link, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Link Label (e.g., Download ID Card)"
+                    value={link.label}
+                    onChange={(e) =>
+                      handleLinkChange(index, "label", e.target.value)
+                    }
+                    className="w-full rounded-md border border-slate-600 bg-slate-900 p-2 text-sm text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"
+                  />
+                  <input
+                    type="text"
+                    placeholder="URL (e.g., /portal/id-card or https://...)"
+                    value={link.href}
+                    onChange={(e) =>
+                      handleLinkChange(index, "href", e.target.value)
+                    }
+                    className="w-full rounded-md border border-slate-600 bg-slate-900 p-2 text-sm text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLink(index)}
+                  className="p-2 text-slate-400 hover:text-red-400">
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleAddLink}
+            className="flex items-center gap-2 text-sm font-semibold text-brand-gold hover:text-yellow-300">
+            <PlusCircle size={18} /> Add New Link
+          </button>
+        </SettingsCard>
+
         <SaveBar
           isVisible={isDirty}
           isSaving={isSaving}
           onReset={handleReset}
-          onSave={handleSaveChanges}
         />
       </form>
     </main>
