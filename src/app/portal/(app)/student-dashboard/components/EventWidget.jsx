@@ -1,78 +1,178 @@
+// src/app/portal/(app)/student-dashboard/components/QuickActions.jsx
 "use client";
 
-import WidgetCard from "./WidgetCard";
-import { CalendarDays } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { db } from "@/firebase/config";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from "firebase/firestore";
+import { HelpCircle, UserSquare, Calendar, X, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { format, startOfMonth } from "date-fns";
 
-// Mock data updated to include a date range for the holiday.
-const mockEvents = [
-  {
-    id: 1,
-    title: "Parent-Teacher Meeting",
-    date: "September 20, 2025",
-    type: "Meeting",
-  },
-  {
-    id: 2,
-    title: "Mid-Term Exams Begin",
-    date: "October 6, 2025",
-    type: "Exam",
-  },
-  {
-    id: 3,
-    title: "Diwali Break",
-    date: "Oct 21 - Oct 25, 2025", // Date range for the holiday
-    type: "Holiday",
-  },
-];
+// --- Helper function to format event dates dynamically ---
+const formatHolidayDate = (startDate, endDate) => {
+  if (!startDate || !(startDate instanceof Timestamp)) return "Date TBD";
+  const start = startDate.toDate();
+  if (
+    !endDate ||
+    !(endDate instanceof Timestamp) ||
+    format(start, "yyyy-MM-dd") === format(endDate.toDate(), "yyyy-MM-dd")
+  ) {
+    return format(start, "MMMM d, yyyy");
+  }
+  const end = endDate.toDate();
+  if (format(start, "yyyy-MM") === format(end, "yyyy-MM")) {
+    return `${format(start, "MMM d")} - ${format(end, "d, yyyy")}`;
+  } else {
+    return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+  }
+};
 
-const EventWidget = () => {
-  // Separate the next event from the rest
-  const nextEvent = mockEvents[0];
-  const upcomingEvents = mockEvents.slice(1, 3);
+// --- ActionButton Component ---
+const ActionButton = ({ Icon, children, href, onClick, target }) => {
+  const Component = href ? Link : "button";
+
+  const commonProps = {
+    onClick: onClick,
+    className:
+      "flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-slate hover:text-light-slate w-full text-center",
+  };
+
+  const componentProps = { ...commonProps };
+  if (href) {
+    componentProps.href = href;
+    if (target) {
+      componentProps.target = target;
+      componentProps.rel = "noopener noreferrer";
+    }
+  }
 
   return (
-    <WidgetCard
-      title="Upcoming Events"
-      Icon={CalendarDays}
-      route="/portal/events">
-      <div className="flex flex-col h-full">
-        {/* Next Event Section */}
-        <div className="mb-4">
-          <div className="flex justify-between items-start">
-            <p className="font-semibold text-light-slate pr-2">
-              {nextEvent.title}
-            </p>
-            <span className="px-2 py-1 text-xs font-semibold rounded-full shrink-0 bg-slate-500/20 text-slate-300">
-              {nextEvent.type}
-            </span>
-          </div>
-          <p className="text-sm text-slate mt-1">{nextEvent.date}</p>
-        </div>
-
-        {/* Separator */}
-        <hr className="border-slate-700/50 my-2" />
-
-        {/* Upcoming Events List */}
-        <div className="flex-grow">
-          <ul className="space-y-3">
-            {upcomingEvents.map((event) => (
-              <li
-                key={event.id}
-                className="flex justify-between items-start text-sm">
-                <div>
-                  <p className="font-medium text-slate/90">{event.title}</p>
-                  <p className="text-xs text-slate/70">{event.date}</p>
-                </div>
-                <p className="text-xs font-medium text-slate-400 shrink-0">
-                  {event.type}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </WidgetCard>
+    <Component {...componentProps}>
+      <Icon className="h-8 w-8 text-brand-gold" />
+      <span className="text-sm font-semibold">{children}</span>
+    </Component>
   );
 };
 
-export default EventWidget;
+export default function QuickActions() {
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [holidays, setHolidays] = useState([]);
+  const [loadingHolidays, setLoadingHolidays] = useState(true);
+
+  // Fetch upcoming holidays from Firestore
+  useEffect(() => {
+    // CORRECTED: Fetch all holidays from the start of the CURRENT month onwards
+    const startOfCurrentMonth = startOfMonth(new Date());
+
+    const holidaysQuery = query(
+      collection(db, "events"),
+      where("type", "==", "Holiday"),
+      where("startDate", ">=", Timestamp.fromDate(startOfCurrentMonth)),
+      orderBy("startDate", "asc")
+    );
+
+    const unsubscribe = onSnapshot(
+      holidaysQuery,
+      (snapshot) => {
+        setHolidays(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+        setLoadingHolidays(false);
+      },
+      (error) => {
+        console.error("Failed to fetch holidays:", error);
+        setLoadingHolidays(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return (
+    <>
+      <motion.div
+        className="mt-8 rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}>
+        <h3 className="text-lg font-semibold text-light-slate mb-4">
+          Quick Actions & Support
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <ActionButton
+            Icon={HelpCircle}
+            href="mailto:support@brightspark.space">
+            Ask a Question
+          </ActionButton>
+          <ActionButton
+            Icon={UserSquare}
+            href="/path/to/mock-id-card.pdf"
+            target="_blank">
+            Download ID Card
+          </ActionButton>
+          <ActionButton Icon={Calendar} onClick={() => setShowHolidays(true)}>
+            View Holiday List
+          </ActionButton>
+        </div>
+      </motion.div>
+
+      {/* Holiday List Modal */}
+      <AnimatePresence>
+        {showHolidays && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowHolidays(false)}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-md rounded-2xl border border-white/10 bg-dark-navy p-6">
+              <h3 className="text-xl font-bold text-brand-gold mb-4">
+                Upcoming Holidays
+              </h3>
+              {loadingHolidays ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="animate-spin text-slate-400" />
+                </div>
+              ) : holidays.length > 0 ? (
+                <ul className="divide-y divide-slate-700/50">
+                  {holidays.map((holiday) => (
+                    <li
+                      key={holiday.id}
+                      className="flex justify-between items-center py-3">
+                      <span className="text-light-slate">{holiday.title}</span>
+                      <span className="text-slate text-xs">
+                        {formatHolidayDate(holiday.startDate, holiday.endDate)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-8 text-center text-slate-500">
+                  No upcoming holidays scheduled.
+                </p>
+              )}
+              <button
+                className="absolute top-4 right-4 text-slate hover:text-white transition-colors"
+                onClick={() => setShowHolidays(false)}>
+                <X size={24} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}

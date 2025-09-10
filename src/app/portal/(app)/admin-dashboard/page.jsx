@@ -1,14 +1,18 @@
+// src/app/portal/(app)/admin-dashboard/page.jsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { db } from "@/firebase/config";
+import { useAuth } from "@/context/AuthContext";
 import {
   collection,
   onSnapshot,
   query,
   orderBy,
   limit,
+  where,
+  Timestamp,
 } from "firebase/firestore";
 import {
   AreaChart,
@@ -26,8 +30,6 @@ import {
   School,
   ArrowRight,
   Loader2,
-  AlertTriangle,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { startOfMonth, formatDistanceToNow } from "date-fns";
@@ -62,7 +64,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg border border-white/10 bg-dark-navy/80 p-3 backdrop-blur-lg shadow-lg">
-        <p className="text-sm font-semibold text-light-slate">{label}</p>
+        <p className="text-sm font-semibold text-light-slate">{`Batch: ${label}`}</p>
         <p className="text-sm text-brand-gold">{`Students: ${payload[0].value}`}</p>
       </div>
     );
@@ -70,84 +72,19 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// --- Full Helper Components (as requested) ---
-const EmptyState = ({
-  onAction,
-  title,
-  message,
-  buttonText,
-  icon: Icon = Users,
-}) => (
-  <div className="text-center py-20 rounded-2xl border-2 border-dashed border-slate-700/50 bg-slate-900/10 col-span-full">
-    <Icon className="mx-auto h-12 w-12 text-slate-500" />
-    <h3 className="mt-4 text-xl font-semibold text-white">{title}</h3>
-    <p className="mt-2 text-sm text-slate">{message}</p>
-    {onAction && buttonText && (
-      <button
-        onClick={onAction}
-        className="mt-6 inline-flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
-        <PlusCircle size={18} />
-        <span>{buttonText}</span>
-      </button>
-    )}
-  </div>
-);
-
-const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, itemName }) => {
-  if (!isOpen) return null;
-  return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={onClose}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}>
-        <motion.div
-          className="relative w-full max-w-md rounded-2xl border border-red-500/30 bg-dark-navy p-6 text-center"
-          initial={{ scale: 0.95 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0.95 }}
-          onClick={(e) => e.stopPropagation()}>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-900/50">
-            <AlertTriangle className="h-6 w-6 text-red-400" />
-          </div>
-          <h3 className="mt-4 text-lg font-bold text-white">
-            Confirm Deletion
-          </h3>
-          <p className="mt-2 text-sm text-slate">
-            Are you sure you want to delete{" "}
-            <span className="font-bold text-light-slate">"{itemName}"</span>?
-            This is permanent.
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <button
-              onClick={onClose}
-              className="w-full px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              className="w-full px-4 py-2 text-sm font-bold rounded-md bg-red-600 text-white hover:bg-red-700">
-              Confirm
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
-
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [batches, setBatches] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
-  const adminName = "Admin";
+
+  const adminName = user?.firstName || "Admin";
 
   useEffect(() => {
+    // Set up listeners for all required collections
     const collections = [
       { q: query(collection(db, "students")), setter: setStudents },
       { q: query(collection(db, "teachers")), setter: setTeachers },
@@ -162,45 +99,56 @@ export default function AdminDashboardPage() {
         setter: setRecentLogs,
       },
     ];
+
+    let loadedCount = 0;
     const unsubs = collections.map(({ q, setter }) =>
-      onSnapshot(q, (snap) =>
-        setter(
-          snap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((d) => d.id !== "--placeholder--")
-        )
+      onSnapshot(
+        q,
+        (snap) => {
+          setter(
+            snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((d) => d.id !== "--placeholder--")
+          );
+          loadedCount++;
+          // Once all initial data is loaded, set loading to false
+          if (loadedCount === collections.length) {
+            setLoading(false);
+          }
+        },
+        (error) => {
+          console.error("Error fetching collection:", error);
+          setLoading(false); // Stop loading on error too
+        }
       )
     );
-    setTimeout(() => setLoading(false), 1200);
+
     return () => unsubs.forEach((unsub) => unsub());
   }, []);
 
   const dashboardData = useMemo(() => {
     const totalStudents = students.length;
     const totalTeachers = teachers.length;
-    const activeBatches = batches.filter((b) => b.status === "Active").length;
+    const activeBatches = batches.length;
+
+    // Calculate revenue for the current month
     const monthlyRevenue = transactions
       .filter(
         (t) =>
-          t.status === "Paid" &&
-          t.paymentDate &&
-          t.paymentDate.toDate() >= startOfMonth(new Date())
+          t.paymentDate && t.paymentDate.toDate() >= startOfMonth(new Date())
       )
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
+    // Group students by their batch name for the chart
     const studentDistribution = students.reduce((acc, student) => {
-      const classLevel = (
-        batches.find((b) => b.name === student.batch)?.classLevel ||
-        "Unassigned"
-      ).replace("Class ", "");
-      acc[classLevel] = (acc[classLevel] || 0) + 1;
+      const batchName = student.batch || "Unassigned";
+      acc[batchName] = (acc[batchName] || 0) + 1;
       return acc;
     }, {});
+
     const chartData = Object.keys(studentDistribution)
-      .map((key) => ({ class: key, students: studentDistribution[key] }))
-      .sort((a, b) =>
-        a.class.localeCompare(b.class, undefined, { numeric: true })
-      );
+      .map((key) => ({ name: key, students: studentDistribution[key] }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return {
       stats: { totalStudents, totalTeachers, activeBatches, monthlyRevenue },
@@ -277,7 +225,7 @@ export default function AdminDashboardPage() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}>
         <div className="lg:col-span-2">
-          <DashboardCard title="Student Distribution by Class">
+          <DashboardCard title="Student Distribution by Batch">
             <div className="w-full h-[350px]">
               <ResponsiveContainer>
                 <AreaChart
@@ -295,7 +243,7 @@ export default function AdminDashboardPage() {
                     </linearGradient>
                   </defs>
                   <XAxis
-                    dataKey="class"
+                    dataKey="name"
                     stroke="#8892b0"
                     tick={{ fill: "#8892b0", fontSize: 12 }}
                   />

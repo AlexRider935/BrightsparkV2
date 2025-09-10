@@ -1,164 +1,205 @@
+// src/app/portal/(app)/student-dashboard/settings/page.jsx
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Settings, KeyRound, Bell, CheckCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
+import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import {
+  Settings,
+  KeyRound,
+  CheckCircle,
+  Loader2,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 
-// --- Helper Components ---
+// --- Change Password Modal Component ---
+const ChangePasswordModal = ({ isOpen, onClose }) => {
+  const { user } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-// A reusable, styled toggle switch component
-const ToggleSwitch = ({ label, description, enabled, onToggle }) => (
-  <div className="flex items-center justify-between py-4">
-    <div>
-      <p className="font-medium text-light-slate">{label}</p>
-      <p className="text-sm text-slate">{description}</p>
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters long.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Step 1: Re-authenticate the user to prove their identity
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+      await reauthenticateWithCredential(user, credential);
+
+      // Step 2: If re-authentication is successful, call our secure API route
+      const idToken = await user.getIdToken(true); // Get a fresh token
+      const response = await fetch("/api/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to change password.");
+      }
+
+      alert("Password changed successfully!");
+      onClose();
+    } catch (authError) {
+      if (authError.code === "auth/wrong-password") {
+        setError("The current password you entered is incorrect.");
+      } else if (authError.code === "auth/too-many-requests") {
+        setError("Too many attempts. Please try again later.");
+      } else {
+        setError(authError.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 20, opacity: 0 }}
+        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-dark-navy p-6">
+        <h2 className="text-xl font-bold text-brand-gold mb-4">
+          Change Password
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate mb-2">
+              Current Password
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate mb-2">
+              New Password
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate mb-2">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-400 p-3 bg-red-500/10 rounded-lg">
+              <AlertTriangle size={16} /> {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="flex items-center justify-center w-36 px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
+              {isSaving ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Save Password"
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-gold focus:ring-offset-2 focus:ring-offset-slate-900 ${
-        enabled ? "bg-brand-gold" : "bg-slate-700"
-      }`}>
-      <span
-        aria-hidden="true"
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-          enabled ? "translate-x-5" : "translate-x-0"
-        }`}
-      />
-    </button>
-  </div>
-);
+  );
+};
 
 export default function SettingsPage() {
-  // State to manage notification preferences
-  const [notifications, setNotifications] = useState({
-    assignments: true,
-    results: true,
-    payments: false,
-    events: true,
-  });
-
-  // State to track if any changes have been made
-  const [isDirty, setIsDirty] = useState(false);
-
-  // State to show a confirmation message on save
-  const [saveStatus, setSaveStatus] = useState("");
-
-  // Handler for toggling a notification
-  const handleToggle = (key) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
-    setIsDirty(true);
-    setSaveStatus("");
-  };
-
-  // Handler for the form submission
-  const handleSaveChanges = (e) => {
-    e.preventDefault();
-    // In a real app, you would save the settings to the backend here.
-    console.log("Saving settings:", notifications);
-    setIsDirty(false);
-    setSaveStatus("Your preferences have been saved successfully!");
-    setTimeout(() => setSaveStatus(""), 5000); // Clear message after 5 seconds
-  };
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div>
+      <AnimatePresence>
+        <ChangePasswordModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      </AnimatePresence>
       <h1 className="text-3xl md:text-4xl font-bold text-light-slate mb-2">
         Settings
       </h1>
-      <p className="text-lg text-slate mb-8">
-        Manage your account, password, and notification preferences.
-      </p>
+      <p className="text-lg text-slate mb-8">Manage your account security.</p>
 
-      <form onSubmit={handleSaveChanges} className="space-y-8">
-        {/* Account Security Section */}
-        <motion.div
-          className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}>
-          <div className="flex items-center gap-3 mb-4">
-            <KeyRound className="h-6 w-6 text-brand-gold" />
-            <h3 className="text-lg font-semibold text-light-slate">
-              Account Security
-            </h3>
+      <motion.div
+        className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}>
+        <div className="flex items-center gap-3 mb-4">
+          <KeyRound className="h-6 w-6 text-brand-gold" />
+          <h3 className="text-lg font-semibold text-light-slate">
+            Account Security
+          </h3>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-lg bg-dark-navy/50">
+          <div>
+            <p className="font-medium text-light-slate">Password</p>
+            <p className="text-sm text-slate">
+              It's a good idea to use a strong password that you're not using
+              elsewhere.
+            </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-lg bg-dark-navy/50">
-            <div>
-              <p className="font-medium text-light-slate">Password</p>
-              <p className="text-sm text-slate">
-                It's a good idea to use a strong password that you're not using
-                elsewhere.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="w-full mt-4 sm:mt-0 sm:w-auto shrink-0 rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-brand-gold hover:text-dark-navy transition-colors">
-              Change Password
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Notification Preferences Section */}
-        <motion.div
-          className="rounded-2xl border border-white/10 bg-slate-900/20 p-6 backdrop-blur-lg"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}>
-          <div className="flex items-center gap-3 mb-2">
-            <Bell className="h-6 w-6 text-brand-gold" />
-            <h3 className="text-lg font-semibold text-light-slate">
-              Notification Preferences
-            </h3>
-          </div>
-          <div className="divide-y divide-slate-700/50">
-            <ToggleSwitch
-              label="New Assignments"
-              description="Get notified when a new assignment is posted."
-              enabled={notifications.assignments}
-              onToggle={() => handleToggle("assignments")}
-            />
-            <ToggleSwitch
-              label="Result Declarations"
-              description="Get notified when results for an exam are published."
-              enabled={notifications.results}
-              onToggle={() => handleToggle("results")}
-            />
-            <ToggleSwitch
-              label="Payment Reminders"
-              description="Receive reminders for upcoming fee payments."
-              enabled={notifications.payments}
-              onToggle={() => handleToggle("payments")}
-            />
-            <ToggleSwitch
-              label="Institute Events"
-              description="Stay informed about upcoming events and holidays."
-              enabled={notifications.events}
-              onToggle={() => handleToggle("events")}
-            />
-          </div>
-        </motion.div>
-
-        {/* Save Changes Button */}
-        <motion.div
-          className="flex items-center justify-end gap-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}>
-          {saveStatus && (
-            <div className="flex items-center gap-2 text-sm text-green-400">
-              <CheckCircle size={16} />
-              <span>{saveStatus}</span>
-            </div>
-          )}
           <button
-            type="submit"
-            disabled={!isDirty}
-            className="rounded-md bg-brand-gold px-6 py-2 text-sm font-bold text-dark-navy transition-colors hover:bg-yellow-400 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-400">
-            Save Changes
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="w-full mt-4 sm:mt-0 sm:w-auto shrink-0 rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-brand-gold hover:text-dark-navy transition-colors">
+            Change Password
           </button>
-        </motion.div>
-      </form>
+        </div>
+      </motion.div>
     </div>
   );
 }

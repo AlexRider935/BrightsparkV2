@@ -74,11 +74,6 @@ const studentNavItems = [
     label: "Assignments",
     Icon: ClipboardList,
   },
-  {
-    href: "/portal/student-dashboard/homework",
-    label: "Homework",
-    Icon: CheckSquare,
-  },
   { href: "/portal/student-dashboard/results", label: "Results", Icon: Award },
   {
     href: "/portal/student-dashboard/payments",
@@ -92,11 +87,11 @@ const studentNavItems = [
   },
   { type: "divider" },
   { href: "/portal/student-dashboard/profile", label: "Profile", Icon: User },
-  {
-    href: "/portal/student-dashboard/settings",
-    label: "Settings",
-    Icon: Settings,
-  },
+  // {
+  //   href: "/portal/student-dashboard/settings",
+  //   label: "Settings",
+  //   Icon: Settings,
+  // },
 ];
 
 // --- TEACHER NAV ITEMS ---
@@ -150,11 +145,11 @@ const teacherNavItems = [
   },
   { type: "divider" },
   { href: "/portal/teacher-dashboard/profile", label: "Profile", Icon: User },
-  {
-    href: "/portal/teacher-dashboard/settings",
-    label: "Settings",
-    Icon: Settings,
-  },
+  // {
+  //   href: "/portal/teacher-dashboard/settings",
+  //   label: "Settings",
+  //   Icon: Settings,
+  // },
 ];
 
 // --- ADMIN NAV ITEMS (MERGED WITH TEACHER ITEMS) ---
@@ -259,6 +254,11 @@ const adminNavItems = [
     label: "Edit About Page",
     Icon: PenSquare,
   },
+  {
+    href: "/portal/admin-dashboard/edit-contact",
+    label: "Edit Contact Page",
+    Icon: Phone,
+  },
 
   // SECTION: System & Profile
   { type: "divider" },
@@ -292,14 +292,15 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 h-screen w-64 border-r border-white/10 bg-dark-navy">
       <div className="flex h-full flex-col p-6">
-        <div className="mb-8 px-4">
-          <Link href="/">
+        <div className="mb-8 w-full">
+          <Link href="/" className="block w-full">
             <Image
               src="/logo1.svg"
-              alt="Brightspark Logo"
-              width={200}
-              height={40}
-              className="w-full h-auto"
+              alt="BrightSpark Logo"
+              width={256}
+              height={80}
+              className="w-full h-auto object-contain"
+              priority
             />
           </Link>
         </div>

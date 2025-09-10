@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image"; // Import the Next.js Image component
 import { db } from "@/firebase/config";
 import { useAuth } from "@/context/AuthContext";
 import { doc, onSnapshot, Timestamp } from "firebase/firestore";
@@ -13,14 +14,14 @@ import {
   Info,
   Clock,
   PieChart,
-  QrCode,
+  QrCode, // Keep as a fallback icon
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 
 const formatDate = (date) =>
   date instanceof Timestamp ? format(date.toDate(), "MMMM dd, yyyy") : "N/A";
 
-// --- REUSABLE UI COMPONENTS ---
+// --- REUSABLE UI COMPONENTS (Unchanged) ---
 
 const StatusBadge = ({ status }) => {
   const styles = useMemo(
@@ -99,7 +100,6 @@ const InstallmentRow = ({ installment }) => {
   );
 };
 
-// --- UPDATED PlanSummaryCard ---
 const PlanSummaryCard = ({ allInstallments, assignedPlanName }) => {
   const totalPaid = useMemo(
     () =>
@@ -109,7 +109,6 @@ const PlanSummaryCard = ({ allInstallments, assignedPlanName }) => {
     [allInstallments]
   );
 
-  // CORRECTED LOGIC: Total due is the sum of all assigned installments
   const totalDue = useMemo(
     () => allInstallments.reduce((sum, inst) => sum + inst.amount, 0),
     [allInstallments]
@@ -126,7 +125,6 @@ const PlanSummaryCard = ({ allInstallments, assignedPlanName }) => {
         <p className="text-2xl font-bold text-light-slate">
           {assignedPlanName}
         </p>
-
         <div className="mt-6">
           <div className="flex justify-between items-end text-sm mb-1">
             <span className="text-slate">Paid</span>
@@ -163,14 +161,17 @@ export default function PaymentsPage() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [feeDetails, setFeeDetails] = useState(null);
   const [feeStructure, setFeeStructure] = useState(null);
+  const [paymentSettings, setPaymentSettings] = useState(null); // <-- NEW state for payment settings
   const [copied, setCopied] = useState(false);
 
+  // --- UPDATED useEffect to fetch all necessary data ---
   useEffect(() => {
     if (!user?.uid) {
       setLoading(false);
       return;
     }
 
+    // Listener for student's personal profile
     const unsubStudent = onSnapshot(
       doc(db, "students", user.uid),
       (docSnap) => {
@@ -180,6 +181,7 @@ export default function PaymentsPage() {
       }
     );
 
+    // Listener for student's fee details
     const unsubFeeDetails = onSnapshot(
       doc(db, "studentFeeDetails", user.uid),
       (docSnap) => {
@@ -189,12 +191,24 @@ export default function PaymentsPage() {
       }
     );
 
+    // NEW: Listener for global payment settings
+    const unsubPaymentSettings = onSnapshot(
+      doc(db, "settings", "payments"),
+      (docSnap) => {
+        setPaymentSettings(
+          docSnap.exists() ? docSnap.data() : { upiId: "", qrCodeUrl: "" }
+        );
+      }
+    );
+
     return () => {
       unsubStudent();
       unsubFeeDetails();
+      unsubPaymentSettings();
     };
   }, [user]);
 
+  // This useEffect now depends on the student profile to fetch the correct fee structure
   useEffect(() => {
     if (studentProfile?.batchId) {
       const unsubFeeStructure = onSnapshot(
@@ -209,7 +223,6 @@ export default function PaymentsPage() {
       );
       return () => unsubFeeStructure();
     } else if (studentProfile === null && user?.uid) {
-      // If student profile is not found, we can stop loading
       setLoading(false);
     }
   }, [studentProfile, user]);
@@ -238,10 +251,13 @@ export default function PaymentsPage() {
     };
   }, [feeDetails, feeStructure]);
 
+  // --- UPDATED handleCopy to use live data ---
   const handleCopy = () => {
-    navigator.clipboard.writeText("brightspark.jaipur@okhdfcbank");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (paymentSettings?.upiId) {
+      navigator.clipboard.writeText(paymentSettings.upiId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   if (loading) {
@@ -322,20 +338,33 @@ export default function PaymentsPage() {
                       <h3 className="font-semibold text-light-slate mb-2">
                         Scan & Pay
                       </h3>
-                      <div className="p-3 bg-white rounded-lg shadow-lg">
-                        <QrCode className="h-28 w-28 md:h-32 md:w-32 text-dark-navy" />
+                      <div className="p-3 bg-white rounded-lg shadow-lg w-32 h-32 md:w-40 md:h-40 flex items-center justify-center">
+                        {/* --- UPDATED: Live QR Code Image --- */}
+                        {paymentSettings?.qrCodeUrl ? (
+                          <Image
+                            src={paymentSettings.qrCodeUrl}
+                            alt="UPI QR Code"
+                            width={140}
+                            height={140}
+                            className="rounded-md"
+                          />
+                        ) : (
+                          <QrCode className="h-24 w-24 text-dark-navy" />
+                        )}
                       </div>
                     </div>
                     <div className="text-center">
                       <p className="text-sm text-slate">Or use UPI ID:</p>
                       <div className="mt-1 flex items-center gap-2 px-3 py-1.5 rounded-md">
+                        {/* --- UPDATED: Live UPI ID --- */}
                         <p className="text-base font-semibold text-light-slate tracking-wider">
-                          brightspark.jaipur@okhdfcbank
+                          {paymentSettings?.upiId || "Not Available"}
                         </p>
                         <button
                           onClick={handleCopy}
                           className="text-slate hover:text-brand-gold transition-colors p-1"
-                          title="Copy UPI ID">
+                          title="Copy UPI ID"
+                          disabled={!paymentSettings?.upiId}>
                           {copied ? (
                             <CheckCircle2
                               size={16}

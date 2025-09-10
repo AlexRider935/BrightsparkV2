@@ -1,85 +1,29 @@
+// src/app/portal/(app)/admin-dashboard/settings/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { db } from "@/firebase/config";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import {
   Save,
   RotateCcw,
   CheckCircle,
-  Building,
-  Settings,
-  KeyRound,
   Loader2,
   AlertTriangle,
-  ToggleLeft,
-  ToggleRight,
+  X,
+  CreditCard,
+  UploadCloud,
 } from "lucide-react";
 
-// --- Default Data (Used only if the Firestore document doesn't exist) ---
-const defaultSettings = {
-  general: {
-    instituteName: "Brightspark Institute",
-    contactEmail: "info@brightspark.space",
-    contactPhone: "+91 98765 43210",
-  },
-  portal: { allowRegistrations: true, maintenanceMode: false },
-  payments: { upiId: "institute@bank", gatewayKey: "" },
-};
-
-// --- Reusable Themed Components ---
-const FormField = ({
-  label,
-  name,
-  value,
-  onChange,
-  type = "text",
-  placeholder = "",
-}) => (
-  <div>
-    <label htmlFor={name} className="block text-sm font-medium text-slate mb-2">
-      {label}
-    </label>
-    <input
-      type={type}
-      id={name}
-      name={name}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200"
-    />
-  </div>
-);
-
-const ToggleSwitch = ({ label, description, enabled, onToggle }) => (
-  <div className="flex items-center justify-between py-4">
-    <div>
-      <p className="font-medium text-light-slate">{label}</p>
-      <p className="text-sm text-slate-400">{description}</p>
-    </div>
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-gold focus:ring-offset-2 focus:ring-offset-dark-navy ${
-        enabled ? "bg-brand-gold" : "bg-slate-700"
-      }`}>
-      <span
-        className={`inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-          enabled ? "translate-x-5" : "translate-x-0"
-        }`}
-      />
-    </button>
-  </div>
-);
-
-const SettingsCard = ({ icon: Icon, title, children, delay = 0 }) => (
+// --- Reusable Components ---
+const SettingsCard = ({ icon: Icon, title, children }) => (
   <motion.div
     className="rounded-xl border border-white/10 bg-slate-900/30 p-6 backdrop-blur-sm"
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}>
+    transition={{ delay: 0.1 }}>
     <div className="flex items-center gap-3 mb-5 border-b border-slate-700/50 pb-3">
       {Icon && <Icon className="h-6 w-6 text-brand-gold" />}
       <h3 className="text-lg font-semibold text-brand-gold tracking-wide">
@@ -97,7 +41,6 @@ const SaveBar = ({ isVisible, isSaving, onSave, onReset }) => (
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         exit={{ y: 100 }}
-        transition={{ type: "spring", stiffness: 200, damping: 30 }}
         className="fixed bottom-6 left-1/2 -translate-x-1/2 w-auto z-50">
         <div className="flex items-center gap-4 rounded-lg border border-white/10 bg-slate-800/80 p-3 shadow-2xl backdrop-blur-lg">
           <p className="text-sm text-slate-300">You have unsaved changes.</p>
@@ -105,13 +48,13 @@ const SaveBar = ({ isVisible, isSaving, onSave, onReset }) => (
             onClick={onReset}
             type="button"
             disabled={isSaving}
-            className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold bg-slate-700/80 text-slate-300 transition-colors hover:bg-slate-600/80 disabled:opacity-50">
+            className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold bg-slate-700/80 text-slate-300 hover:bg-slate-600/80 disabled:opacity-50">
             <RotateCcw size={16} /> Reset
           </button>
           <button
             type="submit"
             disabled={isSaving}
-            className="flex min-w-[140px] items-center justify-center gap-2 rounded-md bg-brand-gold px-6 py-2 text-sm font-bold text-dark-navy transition-colors hover:bg-yellow-400 disabled:bg-slate-600">
+            className="flex min-w-[140px] items-center justify-center gap-2 rounded-md bg-brand-gold px-6 py-2 text-sm font-bold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600">
             {isSaving ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
@@ -154,30 +97,39 @@ const ToastNotification = ({ message, type, onDismiss }) => {
 };
 
 export default function SystemSettingsPage() {
-  const [settings, setSettings] = useState(null);
-  const [initialSettings, setInitialSettings] = useState(null);
+  const [settings, setSettings] = useState({ upiId: "", qrCodeUrl: "" });
+  const [initialSettings, setInitialSettings] = useState({
+    upiId: "",
+    qrCodeUrl: "",
+  });
+  const [qrCodeImageFile, setQrCodeImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState({ message: "", type: "" });
-  const [error, setError] = useState(null);
+
+  const isDirty =
+    JSON.stringify(settings) !== JSON.stringify(initialSettings) ||
+    !!qrCodeImageFile;
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const settingsRef = doc(db, "settings", "system");
+        const settingsRef = doc(db, "settings", "payments");
         const docSnap = await getDoc(settingsRef);
-        if (docSnap.exists()) {
-          const fetchedData = docSnap.data();
-          setSettings(fetchedData);
-          setInitialSettings(fetchedData);
-        } else {
-          setSettings(defaultSettings);
-          setInitialSettings(defaultSettings);
-        }
+        const fetchedData = docSnap.exists()
+          ? docSnap.data()
+          : { upiId: "", qrCodeUrl: "" };
+        setSettings(fetchedData);
+        setInitialSettings(fetchedData);
+        setPreviewUrl(fetchedData.qrCodeUrl || "");
       } catch (err) {
         console.error("Error fetching settings:", err);
-        setError("Could not load system settings.");
+        setStatus({
+          message: "Could not load payment settings.",
+          type: "error",
+        });
       } finally {
         setLoading(false);
       }
@@ -185,44 +137,67 @@ export default function SystemSettingsPage() {
     fetchSettings();
   }, []);
 
-  const handleInputChange = (section, name, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [section]: { ...prev[section], [name]: value },
-    }));
-    setIsDirty(true);
-  };
-
-  const handleToggle = (section, key) => {
-    setSettings((prev) => ({
-      ...prev,
-      [section]: { ...prev[section], [key]: !prev[section][key] },
-    }));
-    setIsDirty(true);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setQrCodeImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
   };
 
   const handleReset = () => {
     setSettings(initialSettings);
-    setIsDirty(false);
+    setQrCodeImageFile(null);
+    setPreviewUrl(initialSettings.qrCodeUrl || "");
   };
 
   const handleSaveChanges = async (e) => {
     e.preventDefault();
     if (!isDirty) return;
+
     setIsSaving(true);
     setStatus({ message: "", type: "" });
+    let newQrCodeUrl = settings.qrCodeUrl;
+
     try {
-      const settingsRef = doc(db, "settings", "system");
-      await setDoc(settingsRef, settings, { merge: true });
-      setInitialSettings(settings);
-      setIsDirty(false);
+      // Step 1: Upload new image to Cloudinary if one is selected
+      if (qrCodeImageFile) {
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append("file", qrCodeImageFile);
+        formData.append(
+          "upload_preset",
+          process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+        );
+
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+          { method: "POST", body: formData }
+        );
+
+        if (!response.ok) throw new Error("Image upload failed.");
+
+        const data = await response.json();
+        newQrCodeUrl = data.secure_url;
+        setIsUploading(false);
+      }
+
+      // Step 2: Save the updated settings to Firestore
+      const newSettings = { ...settings, qrCodeUrl: newQrCodeUrl };
+      const settingsRef = doc(db, "settings", "payments");
+      await setDoc(settingsRef, newSettings, { merge: true });
+
+      setSettings(newSettings);
+      setInitialSettings(newSettings);
+      setQrCodeImageFile(null);
       setStatus({
-        message: "System settings updated successfully!",
+        message: "Payment settings updated successfully!",
         type: "success",
       });
     } catch (err) {
       console.error("Error saving settings:", err);
       setStatus({ message: "Failed to save settings.", type: "error" });
+      setIsUploading(false);
     } finally {
       setIsSaving(false);
       setTimeout(() => setStatus({ message: "", type: "" }), 5000);
@@ -233,17 +208,6 @@ export default function SystemSettingsPage() {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-center">
-        <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
-        <h2 className="text-xl font-semibold text-light-slate">
-          An Error Occurred
-        </h2>
-        <p className="text-slate">{error}</p>
       </div>
     );
   }
@@ -261,106 +225,77 @@ export default function SystemSettingsPage() {
         System Settings
       </h1>
       <p className="text-base text-slate mb-8">
-        Manage global configurations for the website and portal.
+        Manage global payment configurations for the student portal.
       </p>
 
-      {settings && (
-        <form onSubmit={handleSaveChanges}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* --- Main Settings Column --- */}
-            <div className="lg:col-span-2 space-y-8">
-              <SettingsCard icon={Building} title="General Institute Details">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    label="Institute Name"
-                    name="instituteName"
-                    value={settings.general.instituteName}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "general",
-                        e.target.name,
-                        e.target.value
-                      )
-                    }
+      <form onSubmit={handleSaveChanges}>
+        <SettingsCard icon={CreditCard} title="Payment Settings">
+          <div>
+            <label
+              htmlFor="upiId"
+              className="block text-sm font-medium text-slate mb-2">
+              UPI ID
+            </label>
+            <input
+              type="text"
+              id="upiId"
+              name="upiId"
+              value={settings.upiId}
+              onChange={(e) =>
+                setSettings((prev) => ({ ...prev, upiId: e.target.value }))
+              }
+              placeholder="e.g., institute@okhdfcbank"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate mb-2">
+              QR Code Image
+            </label>
+            <div className="flex items-center gap-6">
+              <div className="w-32 h-32 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-700 overflow-hidden">
+                {previewUrl ? (
+                  <Image
+                    src={previewUrl}
+                    alt="QR Code Preview"
+                    width={128}
+                    height={128}
+                    className="object-contain"
                   />
-                  <FormField
-                    label="Public Contact Email"
-                    name="contactEmail"
-                    value={settings.general.contactEmail}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "general",
-                        e.target.name,
-                        e.target.value
-                      )
-                    }
-                    type="email"
-                  />
-                  <FormField
-                    label="Public Contact Phone"
-                    name="contactPhone"
-                    value={settings.general.contactPhone}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "general",
-                        e.target.name,
-                        e.target.value
-                      )
-                    }
-                    type="tel"
-                  />
-                </div>
-              </SettingsCard>
-              <SettingsCard icon={Settings} title="Portal Settings" delay={0.1}>
-                <div className="divide-y divide-slate-700/50">
-                  <ToggleSwitch
-                    label="Enable New Student Registrations"
-                    description="Allow students to sign up via the public website."
-                    enabled={settings.portal.allowRegistrations}
-                    onToggle={() =>
-                      handleToggle("portal", "allowRegistrations")
-                    }
-                  />
-                  <ToggleSwitch
-                    label="Enable Maintenance Mode"
-                    description="Temporarily disable student/teacher login."
-                    enabled={settings.portal.maintenanceMode}
-                    onToggle={() => handleToggle("portal", "maintenanceMode")}
-                  />
-                </div>
-              </SettingsCard>
-            </div>
-            {/* --- Sidebar Column --- */}
-            <div className="lg:col-span-1 space-y-8">
-              <SettingsCard icon={KeyRound} title="Payment Gateway" delay={0.2}>
-                <FormField
-                  label="UPI ID"
-                  name="upiId"
-                  value={settings.payments.upiId}
-                  onChange={(e) =>
-                    handleInputChange("payments", e.target.name, e.target.value)
-                  }
+                ) : (
+                  <span className="text-xs text-slate-500">No Image</span>
+                )}
+              </div>
+              <label
+                htmlFor="qrCodeUpload"
+                className="cursor-pointer flex flex-col items-center justify-center h-32 rounded-lg border-2 border-dashed border-slate-700 bg-slate-800/50 p-4 text-center text-slate-400 hover:border-brand-gold hover:text-brand-gold transition-colors w-full">
+                {isUploading ? (
+                  <Loader2 className="animate-spin h-8 w-8" />
+                ) : (
+                  <UploadCloud className="h-8 w-8" />
+                )}
+                <span className="mt-2 text-sm font-semibold">
+                  {isUploading ? "Uploading..." : "Click to upload or replace"}
+                </span>
+                <span className="text-xs">PNG, JPG, or SVG</span>
+                <input
+                  id="qrCodeUpload"
+                  type="file"
+                  accept="image/png, image/jpeg, image/svg+xml"
+                  className="hidden"
+                  onChange={handleImageChange}
                 />
-                <FormField
-                  label="Gateway Public Key"
-                  name="gatewayKey"
-                  value={settings.payments.gatewayKey}
-                  onChange={(e) =>
-                    handleInputChange("payments", e.target.name, e.target.value)
-                  }
-                  placeholder="pk_live_..."
-                />
-              </SettingsCard>
+              </label>
             </div>
           </div>
-          <SaveBar
-            isVisible={isDirty}
-            isSaving={isSaving}
-            onReset={handleReset}
-            onSave={handleSaveChanges}
-          />
-        </form>
-      )}
+        </SettingsCard>
+        <SaveBar
+          isVisible={isDirty}
+          isSaving={isSaving}
+          onReset={handleReset}
+          onSave={handleSaveChanges}
+        />
+      </form>
     </main>
   );
 }

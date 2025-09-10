@@ -85,31 +85,28 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!user?.uid) {
-      if (user) return;
-      const timer = setTimeout(() => {
-        if (!user) {
-          setLoading(false);
-          setError("Please log in to view your attendance.");
-        }
-      }, 2500);
-      return () => clearTimeout(timer);
+      setLoading(false);
+      return;
     }
 
-    let unsubAttendance = () => {};
+    let unsubAttendanceRecords = () => {};
     let unsubEvents = () => {};
 
     const setupListeners = async () => {
+      setLoading(true);
+      setError(null);
       try {
+        // Step 1: Get the student's batchId from their profile
         const studentDocRef = doc(db, "students", user.uid);
         const studentSnap = await getDoc(studentDocRef);
-        if (!studentSnap.exists())
-          throw new Error("Your student profile could not be found.");
+        if (!studentSnap.exists() || !studentSnap.data().batchId) {
+          throw new Error("Your student profile is missing batch information.");
+        }
+        const studentBatchId = studentSnap.data().batchId;
+        const studentBatchName = studentSnap.data().batch;
 
-        const studentBatch = studentSnap.data().batch;
-        if (!studentBatch) throw new Error("You are not assigned to a batch.");
-
+        // Step 2: Listen for events relevant to the student's batch
         const monthEnd = endOfMonth(currentDate);
-
         const eventsQuery = query(
           collection(db, "events"),
           where("startDate", "<=", Timestamp.fromDate(monthEnd))
@@ -121,34 +118,34 @@ export default function AttendancePage() {
               (event) =>
                 !event.batches ||
                 event.batches.length === 0 ||
-                event.batches.includes(studentBatch)
+                event.batches.includes(studentBatchName)
             );
           setAllEvents(relevantEvents);
         });
 
-        const attendanceRef = collection(
-          db,
-          "students",
-          user.uid,
-          "attendance"
+        // Step 3: Listen to the correct 'attendanceRecords' collection
+        const monthStart = startOfMonth(currentDate);
+        const attendanceQuery = query(
+          collection(db, "attendanceRecords"),
+          where("batchId", "==", studentBatchId),
+          where("date", ">=", Timestamp.fromDate(monthStart)),
+          where("date", "<=", Timestamp.fromDate(monthEnd))
         );
-        const qAttendance = query(attendanceRef, orderBy("date", "desc"));
-        unsubAttendance = onSnapshot(
-          qAttendance,
-          (snapshot) => {
-            setAttendanceHistory(
-              snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-            );
-            setLoading(false);
-          },
-          (err) => {
-            console.error("Attendance listener error:", err);
-            setError("Could not load attendance history.");
-            setLoading(false);
-          }
-        );
+
+        unsubAttendanceRecords = onSnapshot(attendanceQuery, (snapshot) => {
+          const history = snapshot.docs
+            .map((doc) => {
+              const data = doc.data();
+              const status = data.studentStatus?.[user.uid]; // Extract this student's status
+              return status ? { date: data.date, status } : null;
+            })
+            .filter(Boolean); // Filter out days where the student wasn't marked
+
+          setAttendanceHistory(history);
+          setLoading(false);
+        });
       } catch (err) {
-        console.error("Error setting up page:", err);
+        console.error("Error setting up attendance page:", err);
         setError(err.message);
         setLoading(false);
       }
@@ -157,20 +154,14 @@ export default function AttendancePage() {
     setupListeners();
 
     return () => {
-      unsubAttendance();
+      unsubAttendanceRecords();
       unsubEvents();
     };
   }, [user, currentDate]);
 
   const { stats, attendanceMap, holidayDays, extraClassDays } = useMemo(() => {
-    const records = attendanceHistory.filter(
-      (record) =>
-        format(record.date.toDate(), "yyyy-MM") ===
-        format(currentDate, "yyyy-MM")
-    );
     const holidays = new Set();
     const extraClasses = new Set();
-
     allEvents.forEach((event) => {
       const interval = {
         start: event.startDate.toDate(),
@@ -187,20 +178,31 @@ export default function AttendancePage() {
       }
     });
 
-    const attendanceMap = new Map(records.map((d) => [d.id, d.status]));
-    const presentDays = records.filter((d) => d.status === "Present").length;
-    const absentDays = records.filter((d) => d.status === "Absent").length;
+    // Create a map of date strings to statuses from the new attendanceHistory
+    const map = new Map(
+      attendanceHistory.map((d) => [
+        format(d.date.toDate(), "yyyy-MM-dd"),
+        d.status,
+      ])
+    );
+
+    const presentDays = attendanceHistory.filter(
+      (d) => d.status === "Present"
+    ).length;
+    const absentDays = attendanceHistory.filter(
+      (d) => d.status === "Absent"
+    ).length;
     const totalClasses = presentDays + absentDays;
     const percentage =
       totalClasses > 0 ? Math.round((presentDays / totalClasses) * 100) : 100;
 
     return {
       stats: { presentDays, absentDays, totalClasses, percentage },
-      attendanceMap,
+      attendanceMap: map,
       holidayDays: holidays,
       extraClassDays: extraClasses,
     };
-  }, [attendanceHistory, currentDate, allEvents]);
+  }, [attendanceHistory, allEvents]);
 
   const firstDayOfMonth = startOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({
