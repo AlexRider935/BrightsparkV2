@@ -1,0 +1,23 @@
+export default function manifest() {
+    return {
+        name: 'Brightspark Institute',
+        short_name: 'Brightspark',
+        description: 'The premier institute for students aiming for the pinnacle of academic success in Jaipur.',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#111827', // Your dark navy background
+        theme_color: '#FBBF24',      // Your brand gold accent
+        icons: [
+            {
+                src: '/android-chrome-192x192.png',
+                sizes: '192x192',
+                type: 'image/png',
+            },
+            {
+                src: '/android-chrome-512x512.png',
+                sizes: '512x512',
+                type: 'image/png',
+            },
+        ],
+    };
+}

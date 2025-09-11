@@ -1,0 +1,14 @@
+See https://www.robotstxt.org/robotstxt.html for documentation on how to use this file.
+This rule applies to all search engine crawlers (bots).
+User-agent: *
+
+Allow crawlers to access the entire site by default.
+Allow: /
+
+IMPORTANT: Disallow crawling of the private portal and any admin-specific pages.
+This prevents login screens and user dashboards from appearing in search results.
+Disallow: /portal/
+Disallow: /admin/
+
+Provide the location of your sitemap to help crawlers find your important pages.
+Sitemap: https://www.google.com/search?q=https://www.brightspark.space/sitemap.xml
