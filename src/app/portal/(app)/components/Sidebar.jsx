@@ -295,7 +295,7 @@ export default function Sidebar() {
         <div className="mb-8 w-full">
           <Link href="/" className="block w-full">
             <Image
-              src="/logo1.svg"
+              src="/logo2.svg"
               alt="BrightSpark Logo"
               width={256}
               height={80}

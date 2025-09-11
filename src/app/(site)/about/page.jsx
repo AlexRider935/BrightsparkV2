@@ -14,8 +14,8 @@ import { FaLinkedin, FaTwitter } from "react-icons/fa";
 
 // Data for the "By the Numbers" section
 const stats = [
-  { value: 12, label: "Years of Excellence", Icon: FiAward },
-  { value: 500, label: "Successful Alumni", Icon: FiUsers },
+  { value: 5, label: "Years of Excellence", Icon: FiAward },
+  { value: 500, label: "Successful students", Icon: FiUsers },
   { value: 95, label: "Improvement Rate", Icon: FiTrendingUp, suffix: "%" },
   { value: 100, label: "Board Results", Icon: FiCheckCircle, suffix: "%" },
 ];
@@ -23,17 +23,17 @@ const stats = [
 // --- NEW: Data for the Teachers Section ---
 const teachers = [
   {
-    name: "Mrs. Sharma",
-    title: "Lead Physics Faculty",
-    image: "/team/hero-1.jpg", // Replace with actual images
-    bio: "With over 15 years of experience, Mrs. Sharma makes complex physics concepts intuitive and engaging.",
+    name: "Mr. Ankit Mahala",
+    title: "Founder and Science Exepert",
+    image: "/founder.jpg", // Replace with actual images
+    bio: "With over 7 years of experience, Mr.Mahala himself carves the way for science students",
   },
-  {
-    name: "Mr. Gupta",
-    title: "Head of Chemistry",
-    image: "/team/hero-2.jpg",
-    bio: "Mr. Gupta's passion for chemistry is contagious, inspiring students to explore the molecular world.",
-  },
+  // {
+  //   name: "Mr. Gupta",
+  //   title: "Head of Chemistry",
+  //   image: "/team/hero-2.jpg",
+  //   bio: "Mr. Gupta's passion for chemistry is contagious, inspiring students to explore the molecular world.",
+  // },
   {
     name: "Ms. Verma",
     title: "Mathematics Specialist",

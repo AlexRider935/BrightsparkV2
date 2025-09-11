@@ -50,8 +50,8 @@ export default function Footer() {
       { href: "/contact", label: "Contact" },
     ],
     Resources: [
-      { href: "/portal/login", label: "Student Portal" },
-      { href: "#", label: "Admission FAQs" },
+      { href: "/portal/login/student", label: "Student Portal" },
+      { href: "/portal/login/teacher", label: "Teacher Portal" },
       { href: "#", label: "Events" },
       { href: "#", label: "Careers" },
     ],
@@ -101,13 +101,13 @@ export default function Footer() {
             />
             <MetricItem
               icon={<Award className="text-brand-gold" />}
-              value="12+"
+              value="5+"
               label="Years of Excellence"
             />
             <MetricItem
               icon={<Users className="text-brand-gold" />}
               value="500+"
-              label="Successful Alumni"
+              label="Successful Students"
             />
             <MetricItem
               icon={<Layers className="text-brand-gold" />}
@@ -116,7 +116,7 @@ export default function Footer() {
             />
             <MetricItem
               icon={<Ratio className="text-brand-gold" />}
-              value="1:12"
+              value="1:15"
               label="Teacher Ratio"
             />
           </div>
@@ -135,7 +135,7 @@ export default function Footer() {
               />
             </Link>
             <p className="mt-4 text-xs text-slate mx-auto lg:mx-0">
-              A premier coaching institute in Kota, Rajasthan, dedicated to
+              A premier coaching institute in Thada, Rajasthan, dedicated to
               fostering academic excellence.
             </p>
           </div>
@@ -167,16 +167,16 @@ export default function Footer() {
                 Connect
               </h3>
               <div className="space-y-3 text-sm">
-                <p className="text-slate">Jagatpura, Jaipur, India</p>
+                <p className="text-slate">Thada, Bhiwadi , RJ</p>
                 <a
-                  href="mailto:contact@brightspark.edu"
+                  href="mailto:brightsparkedu.23@gmail.com"
                   className="block text-slate transition-colors hover:text-brand-gold">
-                  contact@brightspark.edu
+                  brightsparkedu.23@gmail.com
                 </a>
                 <a
-                  href="tel:+919876543210"
+                  href="tel:+916375272508"
                   className="block text-slate transition-colors hover:text-brand-gold">
-                  +91 987 654 3210
+                  +91 6375272508
                 </a>
                 <div className="flex items-center justify-center gap-4 pt-2 sm:justify-start">
                   <a href="#" aria-label="Facebook">
@@ -223,7 +223,7 @@ export default function Footer() {
               </div>
               <p className="text-xs font-medium text-slate">
                 {time}{" "}
-                <span className="hidden sm:inline-block">- Kota, IN</span>
+                <span className="hidden sm:inline-block">- Thada, RJ</span>
               </p>
             </div>
             <button

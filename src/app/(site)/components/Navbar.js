@@ -14,9 +14,10 @@ export default function Navbar() {
     const pathname = usePathname();
 
     const navLinks = [
+        { href: "/", label: "Home" },
         { href: "/courses", label: "Courses" },
         { href: "/about", label: "About" },
-        { href: "/blog", label: "Blog" },
+        // { href: "/blog", label: "Blog" },
         { href: "/contact", label: "Contact" },
     ];
 
@@ -89,10 +90,13 @@ export default function Navbar() {
                             className="absolute z-0 h-10 rounded-full bg-brand-gold"
                         />
                         {navLinks.map((link) => {
-                            const isActive = pathname.startsWith(link.href);
+                            // --- THIS IS THE ONLY LINE THAT WAS CHANGED ---
+                            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+
                             const isHovered = hoveredHref === link.href;
                             const isHighlighted = (isActive && !hoveredHref) || isHovered;
                             const textColorClass = isHighlighted ? "text-dark-navy" : "text-light-slate/80";
+
                             return (
                                 <Link
                                     key={link.label}

@@ -26,11 +26,12 @@ import {
   Edit,
   Trash2,
   ChevronDown,
-  Filter,
+  Mail,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-// --- HELPER & UI COMPONENTS ---
+// --- UI COMPONENTS (StatusBadge, ConfirmDeleteModal, EmptyState) ---
+// These smaller components have no changes and are included for completeness.
 
 const StatusBadge = ({ status }) => {
   const styles = useMemo(
@@ -49,145 +50,6 @@ const StatusBadge = ({ status }) => {
       }`}>
       {status}
     </span>
-  );
-};
-
-const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
-  const [formData, setFormData] = useState({});
-  useEffect(() => {
-    const initialData = {
-      studentName: "",
-      classApplied: "",
-      parentName: "",
-      contact: "",
-      inquiryDate: new Date().toISOString().split("T")[0],
-      status: "New Inquiry",
-    };
-    setFormData(
-      inquiry
-        ? {
-            ...inquiry,
-            inquiryDate: new Date(inquiry.inquiryDate)
-              .toISOString()
-              .split("T")[0],
-          }
-        : initialData
-    );
-  }, [inquiry, isOpen]);
-
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  if (!isOpen) return null;
-  const formInputClasses =
-    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={onClose}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}>
-        <motion.div
-          onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/90 p-6 backdrop-blur-xl"
-          initial={{ scale: 0.95 }}
-          animate={{ scale: 1 }}
-          exit={{ scale: 0.95 }}>
-          <h2 className="text-xl font-bold text-brand-gold mb-6">
-            {inquiry ? "Edit Inquiry" : "Add New Inquiry"}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                name="studentName"
-                value={formData.studentName}
-                onChange={handleChange}
-                placeholder="Student Full Name"
-                className={formInputClasses}
-                required
-              />
-              <input
-                name="classApplied"
-                value={formData.classApplied}
-                onChange={handleChange}
-                placeholder="Class Applied For"
-                className={formInputClasses}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                name="parentName"
-                value={formData.parentName}
-                onChange={handleChange}
-                placeholder="Parent Name"
-                className={formInputClasses}
-                required
-              />
-              <input
-                name="contact"
-                value={formData.contact}
-                onChange={handleChange}
-                placeholder="Parent Contact"
-                className={formInputClasses}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                name="inquiryDate"
-                type="date"
-                value={formData.inquiryDate}
-                onChange={handleChange}
-                className={`${formInputClasses} pr-2`}
-                required
-              />
-              <div className="relative">
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  className={`${formInputClasses} appearance-none pr-8`}>
-                  {["New Inquiry", "Contacted", "Enrolled", "Rejected"].map(
-                    (s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    )
-                  )}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400">
-                {inquiry ? "Save Changes" : "Add Inquiry"}
-              </button>
-            </div>
-          </form>
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-slate-400 hover:text-white">
-            <X size={24} />
-          </button>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
   );
 };
 
@@ -249,12 +111,177 @@ const EmptyState = ({
       <button
         onClick={onAction}
         className="mt-6 flex items-center mx-auto gap-2 rounded-lg bg-brand-gold px-5 py-3 text-sm font-bold text-dark-navy hover:bg-yellow-400">
-        <PlusCircle size={18} />
-        <span>{buttonText}</span>
+        {" "}
+        <PlusCircle size={18} /> <span>{buttonText}</span>{" "}
       </button>
     )}
   </div>
 );
+
+// --- UPDATED & FIXED COMPONENTS ---
+
+const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
+  const [formData, setFormData] = useState({});
+
+  useEffect(() => {
+    // This defines a complete, empty structure for the form
+    const initialData = {
+      studentName: "",
+      classApplied: "",
+      parentName: "",
+      contact: "",
+      email: "",
+      message: "",
+      inquiryDate: new Date().toISOString().split("T")[0],
+      status: "New Inquiry",
+    };
+
+    // This robustly populates the form, ensuring no field is ever 'undefined'
+    if (inquiry) {
+      setFormData({
+        studentName: inquiry.studentName || "",
+        classApplied: inquiry.classApplied || "",
+        parentName: inquiry.parentName || "",
+        contact: inquiry.contact || "",
+        email: inquiry.email || "",
+        message: inquiry.message || "",
+        inquiryDate: new Date(inquiry.inquiryDate).toISOString().split("T")[0],
+        status: inquiry.status || "New Inquiry",
+      });
+    } else {
+      setFormData(initialData);
+    }
+  }, [inquiry, isOpen]);
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  if (!isOpen) return null;
+  const formInputClasses =
+    "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}>
+        <motion.div
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-dark-navy/90 p-6 backdrop-blur-xl"
+          initial={{ scale: 0.95 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0.95 }}>
+          <h2 className="text-xl font-bold text-brand-gold mb-6">
+            {inquiry ? "Edit Inquiry" : "Add New Inquiry"}
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                name="studentName"
+                value={formData.studentName}
+                onChange={handleChange}
+                placeholder="Student Full Name"
+                className={formInputClasses}
+                required
+              />
+              <input
+                name="classApplied"
+                value={formData.classApplied}
+                onChange={handleChange}
+                placeholder="Class Applied For"
+                className={formInputClasses}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                name="parentName"
+                value={formData.parentName}
+                onChange={handleChange}
+                placeholder="Parent Name"
+                className={formInputClasses}
+              />
+              <input
+                name="contact"
+                value={formData.contact}
+                onChange={handleChange}
+                placeholder="Contact (Phone or Email)"
+                className={formInputClasses}
+                required
+              />
+            </div>
+            <input
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Email Address"
+              className={formInputClasses}
+            />
+            <textarea
+              name="message"
+              value={formData.message}
+              onChange={handleChange}
+              placeholder="Inquiry Message..."
+              rows="3"
+              className={formInputClasses}
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                name="inquiryDate"
+                type="date"
+                value={formData.inquiryDate}
+                onChange={handleChange}
+                className={`${formInputClasses} pr-2`}
+                required
+              />
+              <div className="relative">
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className={`${formInputClasses} appearance-none pr-8`}>
+                  {["New Inquiry", "Contacted", "Enrolled", "Rejected"].map(
+                    (s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    )
+                  )}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-semibold rounded-md bg-white/10 text-slate-300 hover:bg-white/20">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400">
+                {inquiry ? "Save Changes" : "Add Inquiry"}
+              </button>
+            </div>
+          </form>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-slate-400 hover:text-white">
+            <X size={24} />
+          </button>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
   <motion.div
@@ -266,22 +293,36 @@ const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-bold text-lg text-light-slate">
-            {item.studentName}
+            {item.studentName || item.name}
           </h3>
           <p className="text-sm text-slate-400">
-            Applying for: {item.classApplied}
+            Applying for: {item.classApplied || "N/A"}
           </p>
         </div>
         <StatusBadge status={item.status} />
       </div>
       <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-2 text-sm text-slate-300">
-        <p>
-          <strong>Parent:</strong> {item.parentName}
-        </p>
-        <p>
-          <strong>Contact:</strong> {item.contact}
-        </p>
-        <p className="text-xs text-slate-500">
+        {item.parentName && (
+          <p>
+            <strong>Parent:</strong> {item.parentName}
+          </p>
+        )}
+        {item.contact && (
+          <p className="flex items-center gap-2">
+            <Phone size={14} /> {item.contact}
+          </p>
+        )}
+        {item.email && (
+          <p className="flex items-center gap-2">
+            <Mail size={14} /> {item.email}
+          </p>
+        )}
+        {item.message && (
+          <p className="mt-2 text-xs italic text-slate-400 truncate">
+            "{item.message}"
+          </p>
+        )}
+        <p className="text-xs text-slate-500 mt-2">
           Inquiry received{" "}
           {formatDistanceToNow(item.inquiryDate, { addSuffix: true })}
         </p>
@@ -292,8 +333,8 @@ const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
         {item.status !== "Enrolled" && item.status !== "Rejected" && (
           <button
             onClick={() => onEnroll(item)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 disabled:bg-slate-600 transition-colors">
-            <Check size={16} /> Enroll Student
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 transition-colors">
+            <Check size={16} /> Enroll
           </button>
         )}
       </div>
@@ -313,6 +354,7 @@ const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
   </motion.div>
 );
 
+// --- MAIN PAGE COMPONENT (No logical changes needed) ---
 export default function AdmissionsPage() {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -385,14 +427,17 @@ export default function AdmissionsPage() {
     setEditingInquiry(inquiry);
     setIsModalOpen(true);
   };
-
   const handleEnroll = (inquiry) => {
     const queryParams = new URLSearchParams({
-      firstName: inquiry.studentName.split(" ")[0] || "",
-      lastName: inquiry.studentName.split(" ").slice(1).join(" ") || "",
+      firstName: (inquiry.studentName || inquiry.name || "").split(" ")[0],
+      lastName: (inquiry.studentName || inquiry.name || "")
+        .split(" ")
+        .slice(1)
+        .join(" "),
       classApplied: inquiry.classApplied || "",
       fatherName: inquiry.parentName || "",
       fatherContact: inquiry.contact || "",
+      parentEmail: inquiry.email || "",
     }).toString();
     router.push(`/portal/admin-dashboard/students/new?${queryParams}`);
   };
@@ -417,7 +462,6 @@ export default function AdmissionsPage() {
           <span>Add New Inquiry</span>
         </button>
       </div>
-
       <div className="flex items-center gap-2 mb-8 bg-slate-900/30 border border-slate-700/50 p-1 rounded-lg">
         {filters.map((filter) => (
           <button
@@ -432,7 +476,6 @@ export default function AdmissionsPage() {
           </button>
         ))}
       </div>
-
       {loading ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
@@ -459,7 +502,6 @@ export default function AdmissionsPage() {
           buttonText="Add New Inquiry"
         />
       )}
-
       <InquiryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

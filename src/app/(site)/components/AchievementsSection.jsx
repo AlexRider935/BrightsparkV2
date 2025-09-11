@@ -15,8 +15,8 @@ import Link from "next/link";
 
 // --- Data for the section ---
 const stats = [
-  { value: 12, label: "Years of Excellence", Icon: FiAward },
-  { value: 500, label: "Successful Alumni", Icon: FiUsers },
+  { value: 7, label: "Years of Excellence", Icon: FiAward },
+  { value: 500, label: "Successful Students", Icon: FiUsers },
   { value: 95, label: "Improvement Rate", Icon: FiTrendingUp, suffix: "%" },
   { value: 100, label: "Board Results", Icon: FiCheckCircle, suffix: "%" },
 ];

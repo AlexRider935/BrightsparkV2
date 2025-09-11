@@ -115,7 +115,7 @@ export default function CoursesPage() {
   }, [activeFilter]);
 
   return (
-    <div className="pt-24 bg-dark-navy">
+    <div className="pt-24">
       {/* --- Section 1: Page Header --- */}
       <section className="relative py-24 text-center">
         <div
