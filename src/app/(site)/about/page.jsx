@@ -20,41 +20,32 @@ const stats = [
   { value: 100, label: "Board Results", Icon: FiCheckCircle, suffix: "%" },
 ];
 
-// --- NEW: Data for the Teachers Section ---
+// Data for the Teachers Section
 const teachers = [
   {
     name: "Mr. Ankit Mahala",
-    title: "Founder and Science Exepert",
-    image: "/founder.jpg", // Replace with actual images
-    bio: "With over 7 years of experience, Mr.Mahala himself carves the way for science students",
+    title: "Founder and Maths/Science Expert",
+    image: "/founder.jpg",
+    bio: "With over 7 years of experience, Mr. Mahala himself carves the way for Science students.",
+    position: "center",
   },
-  // {
-  //   name: "Mr. Gupta",
-  //   title: "Head of Chemistry",
-  //   image: "/team/hero-2.jpg",
-  //   bio: "Mr. Gupta's passion for chemistry is contagious, inspiring students to explore the molecular world.",
-  // },
   {
-    name: "Ms. Verma",
-    title: "Mathematics Specialist",
-    image: "/team/hero-3.jpg",
-    bio: "An expert in competitive math, Ms. Verma equips students with the skills to excel in any exam.",
+    name: "Mrs. Monika Rawat",
+    title: "Mathematics and science educator",
+    image: "/monika1.jpg",
+    bio: "Passionate educator, Mrs. Monika Rawat inspires students to master mathematics and science with clarity and confidence.",
+    position: "top",
   },
 ];
 
-// --- NEW: Data for the Unsung Heroes Section ---
+// --- CHANGE 1: Rajat Mahala has been removed from this array ---
 const unsungHeroes = [
   {
     name: "Mitali Amit Patil",
     title: "Design Expert",
     image: "/team/hero-1.jpg",
   },
-  { name: "Apoorva Sharma", title: "Tech & Design", image: "/team/hero-2.jpg" },
-  {
-    name: "Rajat Mahala",
-    title: "Student Counselor",
-    image: "/team/hero-3.jpg",
-  },
+  { name: "Apoorva Sharma", title: "Tech Expert", image: "/team/hero-2.jpg" },
 ];
 
 const StatItem = ({ stat }) => (
@@ -222,7 +213,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* --- NEW Section 5: Meet Our Teachers --- */}
+      {/* --- Section 5: Meet Our Teachers --- */}
       <section className="py-24">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-4xl font-bold text-white">
@@ -236,7 +227,7 @@ export default function AboutPage() {
             whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
             transition={{ staggerChildren: 0.2 }}
-            className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:max-w-4xl lg:mx-auto">
             {teachers.map((teacher) => (
               <motion.div
                 key={teacher.name}
@@ -249,7 +240,7 @@ export default function AboutPage() {
                   src={teacher.image}
                   alt={teacher.name}
                   fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  className={`object-cover transition-transform duration-500 group-hover:scale-105 object-${teacher.position}`}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark-navy via-dark-navy/60 to-transparent" />
                 <div className="absolute inset-0 flex flex-col justify-end p-6">
@@ -267,7 +258,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* --- NEW Section 6: Our Unsung Heroes --- */}
+      {/* --- Section 6: Our Unsung Heroes --- */}
       <section className="py-24">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-white">Our Unsung Heroes</h2>
@@ -275,6 +266,7 @@ export default function AboutPage() {
             The dedicated team working behind the scenes to create the best
             learning experience.
           </p>
+          {/* The flexbox classes here will automatically center the two remaining items */}
           <div className="mt-12 flex justify-center -space-x-4">
             {unsungHeroes.map((hero, i) => (
               <motion.div
