@@ -117,7 +117,7 @@ export default function HeroSection() {
                         animate={{ opacity: 1 }}
                         transition={{ delay: 1.2, duration: 0.8 }}
                         className="mx-auto mt-6 max-w-md text-lg text-slate/80 md:mx-0 md:max-w-xl">
-                        Welcome to Brightspark, where we forge the future's brightest minds. Your journey to the top begins here.
+                        Welcome to Brightspark, where we forge the future&apos;s brightest minds. Your journey to the top begins here.
                     </motion.p>
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
