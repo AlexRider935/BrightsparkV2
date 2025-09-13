@@ -126,8 +126,7 @@ export async function POST(request) {
                                 <td style="padding: 24px; text-align: center; background-color: #f7fafc; border-top: 1px solid #e2e8f0;">
                                   
                                   <!-- THIS IS THE ONLY LINE THAT HAS BEEN ADDED -->
-                                  <p style="color:#718096;font-size:12px;margin:0 0 8px 0;">Portal Link: <a href="https://www.brightspark.space/portal/login/student" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:bold;">Click here</a></p>
-                                  
+                                  <p style="color:#718096;font-size:12px;margin:0 0 8px 0;">Portal Link: <a href="https://www.brightspark.space/portal/login/student" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:bold;">Click here</a></p> 
                                   <p style="color:#718096;font-size:12px;margin:0;">Follow us on Instagram: <a href="https://www.instagram.com/brightspark_institute23" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:bold;">@brightspark_institute23</a></p>
                                 </td>
                               </tr>
