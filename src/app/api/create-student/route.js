@@ -8,69 +8,69 @@ const INTERNAL_EMAIL_DOMAIN = "brightspark.student";
 
 // Helper function to safely create a Timestamp from a date string or return null
 function createTimestamp(dateString) {
-    if (dateString && !isNaN(new Date(dateString))) {
-        return Timestamp.fromDate(new Date(dateString));
-    }
-    return null;
+  if (dateString && !isNaN(new Date(dateString))) {
+    return Timestamp.fromDate(new Date(dateString));
+  }
+  return null;
 }
 
 export async function POST(request) {
-    try {
-        const body = await request.json();
-        const { username, password, ...profileData } = body;
+  try {
+    const body = await request.json();
+    const { username, password, ...profileData } = body;
 
-        if (!username || !password || !profileData.firstName || !profileData.lastName) {
-            return NextResponse.json({ error: "Username, password, and name are required." }, { status: 400 });
-        }
+    if (!username || !password || !profileData.firstName || !profileData.lastName) {
+      return NextResponse.json({ error: "Username, password, and name are required." }, { status: 400 });
+    }
 
-        const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
-        const internalEmail = `${username.toLowerCase().trim()}@${INTERNAL_EMAIL_DOMAIN}`;
+    const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
+    const internalEmail = `${username.toLowerCase().trim()}@${INTERNAL_EMAIL_DOMAIN}`;
 
-        const userRecord = await adminAuth.createUser({
-            email: internalEmail,
-            password: password,
-            displayName: fullName,
-        });
-        const { uid } = userRecord;
+    const userRecord = await adminAuth.createUser({
+      email: internalEmail,
+      password: password,
+      displayName: fullName,
+    });
+    const { uid } = userRecord;
 
-        const studentProfile = {
-            ...profileData,
-            name: fullName,
-            username: username.toLowerCase().trim(),
-            uid: uid,
-            role: "student",
-            admissionNo: profileData.rollNumber,
+    const studentProfile = {
+      ...profileData,
+      name: fullName,
+      username: username.toLowerCase().trim(),
+      uid: uid,
+      role: "student",
+      admissionNo: profileData.rollNumber,
 
-            // --- FIX APPLIED HERE ---
-            dob: createTimestamp(profileData.dob),
-            admissionDate: createTimestamp(profileData.admissionDate),
+      // --- FIX APPLIED HERE ---
+      dob: createTimestamp(profileData.dob),
+      admissionDate: createTimestamp(profileData.admissionDate),
 
-            parentContact: profileData.parentContact ? `+91${profileData.parentContact.replace(/\D/g, '')}` : "",
-            emergencyContact: profileData.emergencyContact ? `+91${profileData.emergencyContact.replace(/\D/g, '')}` : "",
-            whatsappNumber: profileData.whatsappNumber ? `+91${profileData.whatsappNumber.replace(/\D/g, '')}` : "",
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-        };
+      parentContact: profileData.parentContact ? `+91${profileData.parentContact.replace(/\D/g, '')}` : "",
+      emergencyContact: profileData.emergencyContact ? `+91${profileData.emergencyContact.replace(/\D/g, '')}` : "",
+      whatsappNumber: profileData.whatsappNumber ? `+91${profileData.whatsappNumber.replace(/\D/g, '')}` : "",
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
 
-        const batch = adminDb.batch();
-        const studentRef = adminDb.collection("students").doc(uid);
-        batch.set(studentRef, studentProfile);
+    const batch = adminDb.batch();
+    const studentRef = adminDb.collection("students").doc(uid);
+    batch.set(studentRef, studentProfile);
 
-        const userRef = adminDb.collection("users").doc(uid);
-        batch.set(userRef, {
-            name: fullName,
-            username: username.toLowerCase().trim(),
-            email: internalEmail,
-            role: "student",
-        });
+    const userRef = adminDb.collection("users").doc(uid);
+    batch.set(userRef, {
+      name: fullName,
+      username: username.toLowerCase().trim(),
+      email: internalEmail,
+      role: "student",
+    });
 
-        await batch.commit();
+    await batch.commit();
 
-        // --- THEMED EMAIL LOGIC ---
-        if (profileData.parentEmail) {
-            try {
-                // Themed HTML template
-                const themedHtml = `
+    // --- THEMED EMAIL LOGIC ---
+    if (profileData.parentEmail) {
+      try {
+        // Themed HTML template
+        const themedHtml = `
                     <!DOCTYPE html>
                     <html>
                     <head>
@@ -124,6 +124,10 @@ export async function POST(request) {
                               </tr>
                               <tr>
                                 <td style="padding: 24px; text-align: center; background-color: #f7fafc; border-top: 1px solid #e2e8f0;">
+                                  
+                                  <!-- THIS IS THE ONLY LINE THAT HAS BEEN ADDED -->
+                                  <p style="color:#718096;font-size:12px;margin:0 0 8px 0;">Portal Link: <a href="https://www.brightspark.space/portal/login/student" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:bold;">Click here</a></p>
+                                  
                                   <p style="color:#718096;font-size:12px;margin:0;">Follow us on Instagram: <a href="https://www.instagram.com/brightspark_institute23" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:bold;">@brightspark_institute23</a></p>
                                 </td>
                               </tr>
@@ -135,25 +139,25 @@ export async function POST(request) {
                     </html>
                 `;
 
-                await sendMail({
-                    to: profileData.parentEmail,
-                    subject: `Welcome to Brightspark Institute, ${profileData.firstName}!`,
-                    html: themedHtml,
-                });
-            } catch (mailError) {
-                console.error("Student created, but failed to send welcome email:", mailError);
-            }
-        }
-        // --- End of Email Logic ---
-
-        return NextResponse.json({ message: "Student enrolled successfully!", uid: uid }, { status: 201 });
-
-    } catch (error) {
-        if (error.code === "auth/email-already-exists") {
-            // This now correctly checks for the internal email, which is based on the username.
-            return NextResponse.json({ error: "This username is already taken." }, { status: 409 });
-        }
-        console.error("Error creating student:", error);
-        return NextResponse.json({ error: `An internal server error occurred: ${error.message}` }, { status: 500 });
+        await sendMail({
+          to: profileData.parentEmail,
+          subject: `Welcome to Brightspark Institute, ${profileData.firstName}!`,
+          html: themedHtml,
+        });
+      } catch (mailError) {
+        console.error("Student created, but failed to send welcome email:", mailError);
+      }
     }
+    // --- End of Email Logic ---
+
+    return NextResponse.json({ message: "Student enrolled successfully!", uid: uid }, { status: 201 });
+
+  } catch (error) {
+    if (error.code === "auth/email-already-exists") {
+      // This now correctly checks for the internal email, which is based on the username.
+      return NextResponse.json({ error: "This username is already taken." }, { status: 409 });
+    }
+    console.error("Error creating student:", error);
+    return NextResponse.json({ error: `An internal server error occurred: ${error.message}` }, { status: 500 });
+  }
 }
