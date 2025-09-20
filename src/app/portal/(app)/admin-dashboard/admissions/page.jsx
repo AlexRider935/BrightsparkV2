@@ -124,25 +124,23 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
   const [formData, setFormData] = useState({});
 
   useEffect(() => {
-    // This defines a complete, empty structure for the form
     const initialData = {
       studentName: "",
       classApplied: "",
       parentName: "",
-      contact: "",
+      phone: "", // <-- Use phone instead of contact
       email: "",
       message: "",
       inquiryDate: new Date().toISOString().split("T")[0],
       status: "New Inquiry",
     };
 
-    // This robustly populates the form, ensuring no field is ever 'undefined'
     if (inquiry) {
       setFormData({
         studentName: inquiry.studentName || "",
         classApplied: inquiry.classApplied || "",
         parentName: inquiry.parentName || "",
-        contact: inquiry.contact || "",
+        phone: inquiry.phone || inquiry.contact || "", // <-- Prioritize phone
         email: inquiry.email || "",
         message: inquiry.message || "",
         inquiryDate: new Date(inquiry.inquiryDate).toISOString().split("T")[0],
@@ -157,7 +155,8 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    // Also update the 'contact' field for backward compatibility if needed
+    onSave({ ...formData, contact: formData.phone });
   };
 
   if (!isOpen) return null;
@@ -207,15 +206,17 @@ const InquiryModal = ({ isOpen, onClose, onSave, inquiry }) => {
                 placeholder="Parent Name"
                 className={formInputClasses}
               />
+              {/* --- MODIFIED: Specific Phone Input --- */}
               <input
-                name="contact"
-                value={formData.contact}
+                name="phone"
+                value={formData.phone}
                 onChange={handleChange}
-                placeholder="Contact (Phone or Email)"
+                placeholder="Phone Number"
                 className={formInputClasses}
                 required
               />
             </div>
+            {/* --- MODIFIED: Email is now a primary field --- */}
             <input
               name="email"
               type="email"
@@ -307,15 +308,20 @@ const InquiryCard = ({ item, onEdit, onDelete, onEnroll }) => (
             <strong>Parent:</strong> {item.parentName}
           </p>
         )}
-        {item.contact && (
-          <p className="flex items-center gap-2">
-            <Phone size={14} /> {item.contact}
-          </p>
+        {/* --- MODIFIED: Display phone as a clickable link --- */}
+        {(item.phone || item.contact) && (
+          <a
+            href={`tel:${item.phone || item.contact}`}
+            className="flex items-center gap-2 hover:text-brand-gold transition-colors">
+            <Phone size={14} /> {item.phone || item.contact}
+          </a>
         )}
         {item.email && (
-          <p className="flex items-center gap-2">
+          <a
+            href={`mailto:${item.email}`}
+            className="flex items-center gap-2 hover:text-brand-gold transition-colors truncate">
             <Mail size={14} /> {item.email}
-          </p>
+          </a>
         )}
         {item.message && (
           <p className="mt-2 text-xs italic text-slate-400 truncate">
@@ -427,20 +433,20 @@ export default function AdmissionsPage() {
     setEditingInquiry(inquiry);
     setIsModalOpen(true);
   };
-  const handleEnroll = (inquiry) => {
-    const queryParams = new URLSearchParams({
-      firstName: (inquiry.studentName || inquiry.name || "").split(" ")[0],
-      lastName: (inquiry.studentName || inquiry.name || "")
-        .split(" ")
-        .slice(1)
-        .join(" "),
-      classApplied: inquiry.classApplied || "",
-      fatherName: inquiry.parentName || "",
-      fatherContact: inquiry.contact || "",
-      parentEmail: inquiry.email || "",
-    }).toString();
-    router.push(`/portal/admin-dashboard/students/new?${queryParams}`);
-  };
+const handleEnroll = (inquiry) => {
+  const queryParams = new URLSearchParams({
+    firstName: (inquiry.studentName || inquiry.name || "").split(" ")[0],
+    lastName: (inquiry.studentName || inquiry.name || "")
+      .split(" ")
+      .slice(1)
+      .join(" "),
+    classApplied: inquiry.classApplied || "",
+    fatherName: inquiry.parentName || "",
+    fatherContact: inquiry.phone || inquiry.contact || "", // <-- Prioritize the new phone field
+    parentEmail: inquiry.email || "",
+  }).toString();
+  router.push(`/portal/admin-dashboard/students/new?${queryParams}`);
+};
 
   const filters = ["All", "New Inquiry", "Contacted", "Enrolled", "Rejected"];
 

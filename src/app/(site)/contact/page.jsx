@@ -25,9 +25,11 @@ const ContactInfoItem = ({ icon, title, children }) => (
 
 export default function ContactPage() {
   // --- ADDED: State for form management ---
+  // --- ADDED: State for form management ---
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "", // <-- ADDED
     message: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,13 +37,30 @@ export default function ContactPage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "phone") {
+      // Allow only numbers and limit to 10 digits
+      const numericValue = value.replace(/[^0-9]/g, "").slice(0, 10);
+      setFormData((prev) => ({ ...prev, [name]: numericValue }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setStatus({ type: "", message: "" });
+
+    // --- FIX: Add phone number validation ---
+    if (formData.phone.length !== 10) {
+      setStatus({
+        type: "error",
+        message: "Please enter a valid 10-digit phone number.",
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/contact-inquiry", {
@@ -60,9 +79,10 @@ export default function ContactPage() {
         type: "success",
         message: "Thank you! Your message has been sent.",
       });
-      setFormData({ name: "", email: "", message: "" }); // Reset form
-    } catch (error) {
-      setStatus({ type: "error", message: error.message });
+      setFormData({ name: "", email: "", phone: "", message: "" }); // Reset form
+    } catch (err) {
+      // --- FIX: Correctly define and use the error variable ---
+      setStatus({ type: "error", message: err.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -176,6 +196,29 @@ export default function ContactPage() {
                     onChange={handleInputChange}
                     className="block w-full rounded-lg border-0 bg-slate/20 px-4 py-3 text-white placeholder-slate/60 focus:outline-none focus:ring-2 focus:ring-brand-gold/70"
                   />
+                </div>
+                {/* --- NEW PHONE FIELD --- */}
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="mb-2 block text-sm font-medium text-slate">
+                    Phone Number
+                  </label>
+                  <div className="flex items-center w-full rounded-lg bg-slate/20 focus-within:ring-2 focus-within:ring-brand-gold/70">
+                    <span className="flex-shrink-0 pl-4 text-slate/60">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      name="phone"
+                      id="phone"
+                      required
+                      placeholder="98765 43210"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className="block w-full border-0 bg-transparent px-4 py-3 text-white placeholder-slate/60 focus:outline-none"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label

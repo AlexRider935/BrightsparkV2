@@ -56,8 +56,7 @@ const StatusBadge = ({ status }) => {
       className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
         styles[status] || styles["Dropped Out"]
       }`}>
-      {" "}
-      {status}{" "}
+      {status}
     </span>
   );
 };
@@ -146,35 +145,59 @@ const StudentEditModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("Profile");
 
-  // --- ADD THIS NEW FUNCTION ---
-  const handleBatchChange = (e) => {
-    const batchName = e.target.value;
-    const selectedBatch = batches.find((b) => b.name === batchName);
-    setFormData((prev) => ({
-      ...prev,
-      batch: batchName,
-      classLevel: selectedBatch ? selectedBatch.classLevel : "", // Also update the classLevel
-    }));
-  };
-
   useEffect(() => {
     if (student) {
-      setFormData({ ...student, subjects: student.subjects || [] });
+      let initialFormData = { ...student, subjects: student.subjects || [] };
+
+      // If student has no class set, check if their batch is a single-class batch
+      if (!initialFormData.classLevel && initialFormData.batch) {
+        const studentBatch = batches.find(
+          (b) => b.name === initialFormData.batch
+        );
+        // If it is, auto-populate the class level
+        if (studentBatch?.classLevel) {
+          initialFormData.classLevel = studentBatch.classLevel;
+        }
+      }
+
+      setFormData(initialFormData);
       setActiveTab("Profile");
     }
-  }, [student, isOpen]);
+  }, [student, isOpen, batches]);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleBatchChange = (e) => {
+    const batchName = e.target.value;
+    const selectedBatch = batches.find((b) => b.name === batchName);
+
+    if (selectedBatch?.classLevel) {
+      // Old batch
+      setFormData((prev) => ({
+        ...prev,
+        batch: batchName,
+        classLevel: selectedBatch.classLevel,
+      }));
+    } else {
+      // New batch
+      setFormData((prev) => ({
+        ...prev,
+        batch: batchName,
+        classLevel: "",
+      }));
+    }
+  };
 
   const handleSubjectChange = (subjectName, isChecked) => {
     setFormData((prev) => ({
       ...prev,
       subjects: isChecked
-        ? [...prev.subjects, subjectName]
-        : prev.subjects.filter((s) => s !== subjectName),
+        ? [...(prev.subjects || []), subjectName]
+        : (prev.subjects || []).filter((s) => s !== subjectName),
     }));
   };
+
   const handleUploadComplete = (url) => {
     setFormData((prev) => ({ ...prev, photoURL: url }));
   };
@@ -186,6 +209,7 @@ const StudentEditModal = ({
       ...formData,
       name: `${formData.firstName} ${formData.lastName}`.trim(),
     };
+
     if (typeof dataToSave.dob === "string" && dataToSave.dob)
       dataToSave.dob = Timestamp.fromDate(new Date(dataToSave.dob));
     if (
@@ -204,6 +228,9 @@ const StudentEditModal = ({
   const formInputClasses =
     "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
 
+  // --- FIX: Define selectedBatch before it is used in the JSX ---
+  const selectedBatch = batches.find((b) => b.name === formData.batch);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -220,7 +247,7 @@ const StudentEditModal = ({
           exit={{ y: 20, opacity: 0 }}>
           <div className="flex items-center justify-between p-6 border-b border-slate-800 shrink-0">
             <div className="flex items-center gap-4">
-              <UserAvatar name={formData.name} imageUrl={formData.photoURL} />{" "}
+              <UserAvatar name={formData.name} imageUrl={formData.photoURL} />
               <div>
                 <h2 className="text-xl font-bold text-brand-gold">
                   Edit Student Profile
@@ -361,7 +388,7 @@ const StudentEditModal = ({
                         <select
                           name="batch"
                           value={formData.batch || ""}
-                          onChange={handleBatchChange} // <-- USE THE NEW HANDLER
+                          onChange={handleBatchChange}
                           required
                           className={`${formInputClasses} appearance-none pr-8`}>
                           <option value="" disabled>
@@ -369,12 +396,51 @@ const StudentEditModal = ({
                           </option>
                           {batches.map((b) => (
                             <option key={b.id} value={b.name}>
-                              {b.name} ({b.classLevel})
+                              {b.name} (
+                              {(b.classLevels || [b.classLevel]).join(", ")})
                             </option>
                           ))}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
                       </div>
+
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-slate mb-2">
+                          Class Level
+                        </label>
+                        {selectedBatch?.classLevels ? (
+                          <>
+                            <select
+                              name="classLevel"
+                              value={formData.classLevel || ""}
+                              onChange={handleChange}
+                              required
+                              disabled={!formData.batch}
+                              className={`${formInputClasses} appearance-none pr-8 disabled:bg-slate-800 disabled:cursor-not-allowed`}>
+                              <option value="" disabled>
+                                Select Class
+                              </option>
+                              {(selectedBatch.classLevels || []).map(
+                                (level) => (
+                                  <option key={level} value={level}>
+                                    {level}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
+                          </>
+                        ) : (
+                          <input
+                            name="classLevel"
+                            value={formData.classLevel || ""}
+                            readOnly
+                            required
+                            className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                          />
+                        )}
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium text-slate mb-2">
                           Admission Date
@@ -607,7 +673,7 @@ const StudentEditModal = ({
                   type="submit"
                   disabled={isSaving}
                   className="px-6 py-2.5 text-sm font-bold rounded-md bg-brand-gold text-dark-navy hover:bg-yellow-400 flex items-center gap-2 disabled:bg-slate-600">
-                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{" "}
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                   Save Changes
                 </button>
               </div>
@@ -757,20 +823,16 @@ export default function ManageStudentsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ uid: deletingStudent.id }), // sending the student's ID (which is the UID)
+        body: JSON.stringify({ uid: deletingStudent.id }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to delete student.");
       }
-
-      // The onSnapshot listener will automatically update the UI list
     } catch (error) {
       console.error("Error deleting student:", error);
-      // Optionally, show an error message to the user here
     } finally {
-      // Close the modal and reset the state regardless of success or failure
       setIsDeleteModalOpen(false);
       setDeletingStudent(null);
     }
@@ -821,51 +883,58 @@ export default function ManageStudentsPage() {
               <div className="col-span-1 text-right">Actions</div>
             </div>
             <div className="divide-y divide-slate-800">
-              {filteredStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
-                  <div className="col-span-4 flex items-center gap-4">
-                    <UserAvatar
-                      name={student.name}
-                      imageUrl={student.photoURL}
-                      size="sm"
-                    />{" "}
-                    <div>
-                      <p className="font-medium text-light-slate">
-                        {student.name}
-                      </p>
+              {filteredStudents.map((student) => {
+                const studentBatch = batches.find(
+                  (b) => b.name === student.batch
+                );
+                return (
+                  <div
+                    key={student.id}
+                    className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20 transition-colors">
+                    <div className="col-span-4 flex items-center gap-4">
+                      <UserAvatar
+                        name={student.name}
+                        imageUrl={student.photoURL}
+                        size="sm"
+                      />
+                      <div>
+                        <p className="font-medium text-light-slate">
+                          {student.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Roll No: {student.rollNumber}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-slate-300">{student.batch}</p>
                       <p className="text-xs text-slate-400">
-                        Roll No: {student.rollNumber}
+                        {student.classLevel ||
+                          studentBatch?.classLevel ||
+                          "Class not set"}
                       </p>
                     </div>
+                    <div className="col-span-3 text-slate-300">
+                      {student.fatherContact || student.parentContact}
+                    </div>
+                    <div className="col-span-1">
+                      <StatusBadge status={student.status} />
+                    </div>
+                    <div className="col-span-1 flex justify-end gap-1">
+                      <button
+                        onClick={() => handleEdit(student)}
+                        className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(student)}
+                        className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-3">
-                    <p className="text-slate-300">{student.batch}</p>
-                    <p className="text-xs text-slate-400">
-                      {student.classLevel}
-                    </p>
-                  </div>
-                  <div className="col-span-3 text-slate-300">
-                    {student.fatherContact || student.parentContact}
-                  </div>
-                  <div className="col-span-1">
-                    <StatusBadge status={student.status} />
-                  </div>
-                  <div className="col-span-1 flex justify-end gap-1">
-                    <button
-                      onClick={() => handleEdit(student)}
-                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(student)}
-                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

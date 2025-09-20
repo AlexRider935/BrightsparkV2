@@ -142,14 +142,19 @@ const TeacherEditModal = ({
 
   useEffect(() => {
     if (teacher) {
+      // --- FIX: Calculate assigned batches from the main batches list ---
+      const assignedBatchNames = batches
+        .filter((b) => b.teacher === teacher.name)
+        .map((b) => b.name);
+
       setFormData({
         ...teacher,
         subjects: teacher.subjects || [],
-        batches: teacher.batches || [],
+        batches: assignedBatchNames, // Use the calculated list
       });
       setActiveTab("Profile");
     }
-  }, [teacher, isOpen]);
+  }, [teacher, isOpen, batches]); // <-- Add batches to the dependency array
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -810,63 +815,70 @@ export default function ManageTeachersPage() {
               <div className="col-span-1 text-right">Actions</div>
             </div>
             <div className="divide-y divide-slate-800">
-              {filteredTeachers.map((teacher) => (
-                <div
-                  key={teacher.id}
-                  className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
-                  <div className="col-span-3 flex items-center gap-4">
-                    <UserAvatar
-                      name={teacher.name}
-                      imageUrl={teacher.photoURL}
-                      size="sm"
-                    />
-                    <div>
-                      <p className="font-medium text-light-slate">
-                        {teacher.name}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        ID: {teacher.employeeId}
-                      </p>
+              {filteredTeachers.map((teacher) => {
+                // --- FIX: Find batches assigned to this specific teacher ---
+                const assignedBatches = batches.filter(
+                  (b) => b.teacher === teacher.name
+                );
+
+                return (
+                  <div
+                    key={teacher.id}
+                    className="grid grid-cols-12 gap-4 items-center p-4 text-sm hover:bg-slate-800/20">
+                    <div className="col-span-3 flex items-center gap-4">
+                      <UserAvatar
+                        name={teacher.name}
+                        imageUrl={teacher.photoURL}
+                        size="sm"
+                      />
+                      <div>
+                        <p className="font-medium text-light-slate">
+                          {teacher.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          ID: {teacher.employeeId}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="col-span-3 flex flex-wrap gap-1">
+                      {(teacher.subjects || []).map((s) => (
+                        <span
+                          key={s}
+                          className="text-xs bg-slate-700/50 px-2 py-0.5 rounded">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="col-span-2 flex flex-wrap gap-1">
+                      {assignedBatches.map((b) => (
+                        <span
+                          key={b.id}
+                          className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
+                          {b.name}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="col-span-2 text-slate-300">
+                      {teacher.contact}
+                    </div>
+                    <div className="col-span-1">
+                      <StatusBadge status={teacher.status} />
+                    </div>
+                    <div className="col-span-1 flex justify-end gap-1">
+                      <button
+                        onClick={() => handleEdit(teacher)}
+                        className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(teacher)}
+                        className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
-                  <div className="col-span-3 flex flex-wrap gap-1">
-                    {(teacher.subjects || []).map((s) => (
-                      <span
-                        key={s}
-                        className="text-xs bg-slate-700/50 px-2 py-0.5 rounded">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="col-span-2 flex flex-wrap gap-1">
-                    {(teacher.batches || []).map((b) => (
-                      <span
-                        key={b}
-                        className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
-                        {b}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="col-span-2 text-slate-300">
-                    {teacher.contact}
-                  </div>
-                  <div className="col-span-1">
-                    <StatusBadge status={teacher.status} />
-                  </div>
-                  <div className="col-span-1 flex justify-end gap-1">
-                    <button
-                      onClick={() => handleEdit(teacher)}
-                      className="p-2 text-slate-400 hover:text-brand-gold rounded-md hover:bg-brand-gold/10">
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(teacher)}
-                      className="p-2 text-slate-400 hover:text-red-400 rounded-md hover:bg-red-400/10">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

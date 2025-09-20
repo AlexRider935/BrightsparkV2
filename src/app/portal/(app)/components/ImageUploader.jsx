@@ -168,7 +168,7 @@ export default function ImageUploader({ onUploadComplete }) {
     return (
       <div className="flex flex-col items-center justify-center text-center text-slate-400 p-4">
         <ImageIcon className="h-10 w-10 mb-2" />
-        <p className="text-sm font-semibold">Student Photo</p>
+        <p className="text-sm font-semibold">Profile Photo</p>
         <p className="text-xs">Click to upload</p>
       </div>
     );

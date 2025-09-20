@@ -4,30 +4,35 @@ import { Timestamp } from "firebase-admin/firestore";
 import { sendMail } from "@/lib/mailer";
 
 export async function POST(request) {
-    try {
-        const { name, email, message } = await request.json();
+  try {
+    // --- MODIFIED: Accept the new 'phone' field ---
+    const { name, email, phone, message } = await request.json();
 
-        if (!name || !email || !message) {
-            return NextResponse.json({ error: "All fields are required." }, { status: 400 });
-        }
+    // --- MODIFIED: Add 'phone' to the validation ---
+    if (!name || !email || !phone || !message) {
+      return NextResponse.json({ error: "All fields are required." }, { status: 400 });
+    }
 
-        // --- Aligned Data Structure ---
-        const inquiryData = {
-            studentName: name, // Use studentName to match the admissions page
-            parentName: name,  // Use name as a fallback for parent name
-            contact: email,    // Use email as the primary contact from the form
-            email: email,      // Store the email explicitly
-            message: message,  // Store the original message
-            classApplied: "Not Specified", // Add a default value
-            inquiryDate: Timestamp.now(),
-            status: "New Inquiry",
-        };
+    // --- MODIFIED: Add phone number to the Firestore document ---
+    const inquiryData = {
+      studentName: name,
+      parentName: name,
+      phone: `+91${phone}`,      // Store the full phone number
+      contact: `+91${phone}`,     // Use phone as the primary contact
+      email: email,
+      message: message,
+      classApplied: "Not Specified",
+      inquiryDate: Timestamp.now(),
+      status: "New Inquiry",
+    };
 
-        await adminDb.collection("admissions").add(inquiryData);
+    await adminDb.collection("admissions").add(inquiryData);
 
-        const adminEmail = "brightsparkedu.23@gmail.com";
-        const subject = `New Contact Inquiry from ${name}`;
-        const emailBody = `
+    const adminEmail = "brightsparkedu.23@gmail.com";
+    const subject = `New Website Inquiry from ${name}`;
+
+    // --- MODIFIED: Improvise the email body to include the phone number ---
+    const emailBody = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -44,6 +49,7 @@ export async function POST(request) {
                       <p style="color:#4a5568;">You have received a new inquiry from the website contact form.</p>
                       <div style="margin: 32px 0; padding: 20px; background-color: #f7fafc; border-radius: 6px; border-left: 4px solid #FBBF24;">
                         <p style="margin:0 0 12px 0;color:#4a5568;"><strong>From:</strong> ${name}</p>
+                        <p style="margin:0 0 12px 0;color:#4a5568;"><strong>Phone:</strong> <a href="tel:+91${phone}" style="color:#1e40af;text-decoration:none;">+91 ${phone}</a></p>
                         <p style="margin:0 0 12px 0;color:#4a5568;"><strong>Email:</strong> <a href="mailto:${email}" style="color:#1e40af;text-decoration:none;">${email}</a></p>
                         <h3 style="margin-top:16px; margin-bottom: 8px; color: #111827; font-size: 16px;">Message:</h3>
                         <p style="margin: 0; color: #4a5568; line-height: 1.7;">${message.replace(/\n/g, '<br>')}</p>
@@ -57,12 +63,12 @@ export async function POST(request) {
             </html>
         `;
 
-        await sendMail({ to: adminEmail, subject: subject, html: emailBody });
+    await sendMail({ to: adminEmail, subject: subject, html: emailBody });
 
-        return NextResponse.json({ message: "Inquiry submitted successfully!" }, { status: 200 });
+    return NextResponse.json({ message: "Inquiry submitted successfully!" }, { status: 200 });
 
-    } catch (error) {
-        console.error("Error in contact inquiry API:", error);
-        return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
-    }
+  } catch (error) {
+    console.error("Error in contact inquiry API:", error);
+    return NextResponse.json({ error: "An internal server error occurred." }, { status: 500 });
+  }
 }

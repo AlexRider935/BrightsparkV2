@@ -81,7 +81,7 @@ export default function AddNewStudentPage() {
   const firstNameInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    photoURL: "", // <-- Add this new line
+    photoURL: "",
     username: "",
     password: "",
     firstName: "",
@@ -91,6 +91,7 @@ export default function AddNewStudentPage() {
     gender: "",
     admissionDate: new Date().toISOString().split("T")[0],
     batch: "",
+    classLevel: "", // --- MODIFIED: Added classLevel to store the student's specific class
     status: "Active",
     fatherName: "",
     fatherContact: "",
@@ -106,11 +107,9 @@ export default function AddNewStudentPage() {
     specialRequest: "",
   });
 
-  // --- Auto-generates the next available roll number on component mount ---
   useEffect(() => {
     firstNameInputRef.current?.focus();
 
-    // Fetch batches and subjects (existing logic)
     const qBatches = query(collection(db, "batches"), orderBy("name"));
     const unsubBatches = onSnapshot(qBatches, (s) =>
       setBatches(s.docs.map((d) => ({ id: d.id, ...d.data() })))
@@ -123,7 +122,6 @@ export default function AddNewStudentPage() {
     };
     fetchSubjects();
 
-    // --- NEW LOGIC: Generate Next Roll Number ---
     const generateNextRollNumber = async () => {
       const ROLL_NUMBER_PREFIX = "23BS";
       const STARTING_NUMBER = 151;
@@ -165,20 +163,14 @@ export default function AddNewStudentPage() {
     return () => unsubBatches();
   }, []);
 
-  // --- Auto-generates username and password when dependencies change ---
   useEffect(() => {
     const { firstName, dob, rollNumber } = formData;
-
-    // Set username from roll number
     const newUsername = rollNumber;
-
-    // Generate password if firstName and dob are available
     let newPassword = "";
     if (firstName && dob) {
-      const formattedDob = dob.split("-").reverse().join(""); // yyyy-mm-dd to ddmmyyyy
+      const formattedDob = dob.split("-").reverse().join("");
       newPassword = `${firstName.toLowerCase().trim()}${formattedDob}`;
     }
-
     setFormData((prev) => ({
       ...prev,
       username: newUsername,
@@ -186,13 +178,32 @@ export default function AddNewStudentPage() {
     }));
   }, [formData.firstName, formData.dob, formData.rollNumber]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({
-      ...p,
-      [name]: name === "username" ? value.replace(/\s/g, "") : value,
+const handleChange = (e) => {
+  const { name, value } = e.target;
+  setFormData((p) => ({ ...p, [name]: value }));
+};
+
+// This new function checks if a batch is old or new and sets the class accordingly
+const handleBatchChange = (e) => {
+  const batchName = e.target.value;
+  const selectedBatch = batches.find((b) => b.name === batchName);
+
+  if (selectedBatch?.classLevel) {
+    // Old batch with single class
+    setFormData((prev) => ({
+      ...prev,
+      batch: batchName,
+      classLevel: selectedBatch.classLevel, // Auto-set the class
     }));
-  };
+  } else {
+    // New batch with multiple classes
+    setFormData((prev) => ({
+      ...prev,
+      batch: batchName,
+      classLevel: "", // Reset class to force user selection
+    }));
+  }
+};
 
   const handleSubjectChange = (subjectName, isChecked) => {
     setFormData((prev) => ({
@@ -202,6 +213,7 @@ export default function AddNewStudentPage() {
         : prev.subjects.filter((s) => s !== subjectName),
     }));
   };
+
   const handleUploadComplete = (url) => {
     setFormData((prev) => ({ ...prev, photoURL: url }));
   };
@@ -235,6 +247,9 @@ export default function AddNewStudentPage() {
   const formInputClasses =
     "w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-light-slate placeholder:text-slate-500 focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition-all duration-200";
 
+  // --- NEW: Find the selected batch object to populate the class dropdown ---
+  const selectedBatch = batches.find((b) => b.name === formData.batch);
+
   return (
     <main>
       <div className="flex items-center gap-4 mb-8">
@@ -259,16 +274,10 @@ export default function AddNewStudentPage() {
         transition={{ duration: 0.5 }}>
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* --- Main Column (Left - 2/3 width) --- */}
             <div className="lg:col-span-2 space-y-8">
-              {/* Photo + Profile Section */}
               <div className="flex flex-col md:flex-row gap-8 items-start p-6 rounded-xl border border-white/10 bg-slate-900/30 backdrop-blur-sm">
                 <div className="w-full md:w-auto flex justify-center shrink-0">
-                  <ImageUploader
-                    onUploadComplete={(url) =>
-                      setFormData((prev) => ({ ...prev, photoURL: url }))
-                    }
-                  />
+                  <ImageUploader onUploadComplete={handleUploadComplete} />
                 </div>
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-6">
                   <div>
@@ -303,7 +312,7 @@ export default function AddNewStudentPage() {
                     <input
                       name="rollNumber"
                       value={formData.rollNumber}
-                      readOnly // Make read-only
+                      readOnly
                       className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
                     />
                   </div>
@@ -456,7 +465,6 @@ export default function AddNewStudentPage() {
               </FormSection>
             </div>
 
-            {/* --- Sidebar Column (Right - 1/3 width) --- */}
             <div className="lg:col-span-1 space-y-8">
               <FormSection title="Login Credentials" icon={UserCheck}>
                 <div className="sm:col-span-4">
@@ -466,7 +474,7 @@ export default function AddNewStudentPage() {
                   <input
                     name="username"
                     value={formData.username}
-                    readOnly // Make read-only
+                    readOnly
                     className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
                     placeholder="Auto-generated from Roll No."
                   />
@@ -477,9 +485,9 @@ export default function AddNewStudentPage() {
                   </label>
                   <input
                     name="password"
-                    type="text" // Change to text to show the generated password
+                    type="text"
                     value={formData.password}
-                    readOnly // Make read-only
+                    readOnly
                     className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
                     placeholder="Auto-generated from Name + DOB"
                   />
@@ -494,7 +502,7 @@ export default function AddNewStudentPage() {
                   <select
                     name="batch"
                     value={formData.batch}
-                    onChange={handleChange}
+                    onChange={handleBatchChange}
                     required
                     className={`${formInputClasses} appearance-none pr-8`}>
                     <option value="" disabled>
@@ -502,12 +510,52 @@ export default function AddNewStudentPage() {
                     </option>
                     {batches.map((b) => (
                       <option key={b.id} value={b.name}>
-                        {b.name} ({b.classLevel})
+                        {b.name} ({(b.classLevels || [b.classLevel]).join(", ")}
+                        )
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
                 </div>
+
+                <div className="sm:col-span-4 relative">
+                  <label className="block text-sm font-medium text-slate mb-2">
+                    Class Level
+                  </label>
+                  {selectedBatch?.classLevels ? (
+                    // If it's a multi-class batch, show the dropdown
+                    <>
+                      <select
+                        name="classLevel"
+                        value={formData.classLevel}
+                        onChange={handleChange}
+                        required
+                        disabled={!formData.batch}
+                        className={`${formInputClasses} appearance-none pr-8 disabled:bg-slate-800 disabled:cursor-not-allowed`}>
+                        <option value="" disabled>
+                          Select Class
+                        </option>
+                        {(selectedBatch.classLevels || []).map((level) => (
+                          <option key={level} value={level}>
+                            {level}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 mt-3 h-5 w-5 text-slate-400 pointer-events-none" />
+                    </>
+                  ) : (
+                    // If it's a single-class batch or no batch, show a disabled input
+                    <input
+                      name="classLevel"
+                      value={formData.classLevel || ""}
+                      readOnly
+                      required
+                      placeholder="Select a batch first"
+                      className={`${formInputClasses} bg-slate-800 cursor-not-allowed`}
+                    />
+                  )}
+                </div>
+
                 <div className="sm:col-span-4">
                   <label className="block text-sm font-medium text-slate mb-2">
                     Subjects Opted
@@ -563,7 +611,6 @@ export default function AddNewStudentPage() {
               </FormSection>
             </div>
 
-            {/* --- Error and Buttons (Full Width Below Columns) --- */}
             <div className="lg:col-span-3">
               {error && (
                 <div className="bg-red-900/50 border border-red-500/30 text-red-300 text-sm p-3 rounded-lg text-center mb-6">
